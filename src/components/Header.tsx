@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { FlameKindling, MoveUpRight } from "lucide-react";
+import { FlameKindling, MoveUpRight, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default function Header() {
 	return (
@@ -22,6 +23,12 @@ export default function Header() {
 					</div>
 				</div>
 				<div className="ml-auto flex items-center gap-3 text-sm text-muted-foreground">
+					<Button size="sm" asChild>
+						<Link to="/create">
+							<Plus className="h-4 w-4" />
+							Создать новый флаг
+						</Link>
+					</Button>
 					<a
 						href="http://localhost:3000/docs"
 						target="_blank"
