@@ -6,8 +6,10 @@ To run this application:
 
 ```bash
 npm install
-npm run start
+npm run dev
 ```
+
+The dev server runs on [http://localhost:3001](http://localhost:3001) and proxies `/api` requests to the backend on `http://localhost:4000`.
 
 # Building For Production
 

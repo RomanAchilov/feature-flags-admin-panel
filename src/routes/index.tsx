@@ -57,6 +57,15 @@ const envSchema = z.object({
   rolloutPercentage: z.number().min(0, 'Не меньше 0').max(100, 'Не больше 100').nullable(),
   forceEnabled: z.boolean().nullable().optional().default(null),
   forceDisabled: z.boolean().nullable().optional().default(null),
+  userTargets: z
+    .array(
+      z.object({
+        userId: z.string(),
+        include: z.boolean(),
+      }),
+    )
+    .optional()
+    .default([]),
   includeInput: z.string().optional().default(''),
   excludeInput: z.string().optional().default(''),
 })
