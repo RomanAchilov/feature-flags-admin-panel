@@ -7,7 +7,6 @@ const mockFlag: FeatureFlag = {
 	key: "flag-1",
 	name: "Checkout flow",
 	description: null,
-	tags: ["beta"],
 	type: "BOOLEAN",
 	environments: [
 		{
@@ -64,7 +63,6 @@ describe("api client", () => {
 			key: "flag-1",
 			name: "Checkout flow",
 			type: "BOOLEAN",
-			tags: [],
 			environments: mockFlag.environments,
 		});
 

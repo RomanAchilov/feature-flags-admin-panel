@@ -83,8 +83,7 @@ export function FeatureFlagsDashboard() {
 		return flags.filter(
 			(flag) =>
 				flag.key.toLowerCase().includes(term) ||
-				flag.name.toLowerCase().includes(term) ||
-				flag.tags.some((tag) => tag.toLowerCase().includes(term)),
+				flag.name.toLowerCase().includes(term),
 		);
 	}, [flags, search]);
 
@@ -202,8 +201,8 @@ export function FeatureFlagsDashboard() {
 							</p>
 							<h1 className="text-3xl font-semibold">Фичи и флаги</h1>
 							<p className="text-sm text-muted-foreground">
-								Лист и настройки всех текущих флагов, поиск по ключу, описанию
-								или тегам. Используйте переключатели для быстрого
+								Лист и настройки всех текущих флагов, поиск по ключу или
+								описанию. Используйте переключатели для быстрого
 								включения/выключения окружений.
 							</p>
 						</div>
@@ -241,13 +240,13 @@ export function FeatureFlagsDashboard() {
 						<div className="space-y-2">
 							<h2 className="text-xl font-semibold">Список флагов</h2>
 							<p className="text-sm text-muted-foreground">
-								Флаги отображаются карточками, в каждой видны тип, теги и
-								текущее состояние окружений.
+								Флаги отображаются карточками, в каждой видны тип и текущее
+								состояние окружений.
 							</p>
 						</div>
 
 						<Input
-							placeholder="Поиск по ключу, имени или тегу"
+							placeholder="Поиск по ключу или имени"
 							value={search}
 							onChange={(event) => setSearch(event.target.value)}
 						/>
@@ -285,22 +284,6 @@ export function FeatureFlagsDashboard() {
 													<p className="truncate text-sm text-muted-foreground">
 														{flag.name}
 													</p>
-													<div className="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
-														{flag.tags.length === 0 ? (
-															<span className="rounded-full border px-3 py-1">
-																Без тегов
-															</span>
-														) : (
-															flag.tags.map((tag) => (
-																<span
-																	key={tag}
-																	className="rounded-full border px-3 py-1"
-																>
-																	{tag}
-																</span>
-															))
-														)}
-													</div>
 													<div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
 														<span className="rounded-full border px-3 py-1">
 															{flag.type === "MULTIVARIANT"

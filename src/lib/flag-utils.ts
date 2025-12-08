@@ -19,12 +19,6 @@ export type EnvState = FeatureFlagEnvironment & {
 	phoneExcludeDraft: string;
 };
 
-export const parseTags = (input: string) =>
-	input
-		.split(",")
-		.map((tag) => tag.trim())
-		.filter(Boolean);
-
 export const collectUserTargets = (envs: EnvState[]) => {
 	const targets: {
 		environment: FeatureEnvironment;

@@ -5,7 +5,6 @@ import {
 	collectUserTargets,
 	type EnvState,
 	environmentsOrder,
-	parseTags,
 } from "./flag-utils";
 
 const baseEnv: EnvState = {
@@ -28,14 +27,6 @@ const baseEnv: EnvState = {
 };
 
 describe("flag-utils", () => {
-	it("parseTags splits and trims values", () => {
-		expect(parseTags("alpha, beta , gamma")).toEqual([
-			"alpha",
-			"beta",
-			"gamma",
-		]);
-	});
-
 	it("collectUserTargets returns include and exclude entries", () => {
 		const targets = collectUserTargets([baseEnv]);
 		expect(targets).toEqual([

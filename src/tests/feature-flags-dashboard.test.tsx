@@ -35,7 +35,6 @@ const baseFlag = {
 	key: "critical-flag",
 	name: "Critical flag",
 	description: "Protect production changes",
-	tags: ["prod"],
 	type: "BOOLEAN" as const,
 	environments: [
 		{

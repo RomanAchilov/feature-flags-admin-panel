@@ -21,13 +21,11 @@ import {
 	collectUserTargets,
 	type EnvState,
 	environmentsOrder,
-	parseTags,
 } from "@/lib/flag-utils";
 
 const flagSettingsSchema = z.object({
 	name: z.string().min(1, "Укажите имя флага"),
 	description: z.string().optional(),
-	tagsInput: z.string().optional(),
 	type: FeatureFlagTypeSchema,
 });
 
@@ -58,7 +56,6 @@ function FlagSettingsPage() {
 		defaultValues: {
 			name: "",
 			description: "",
-			tagsInput: "",
 			type: "BOOLEAN",
 		},
 	});
@@ -81,7 +78,6 @@ function FlagSettingsPage() {
 				reset({
 					name: data.name,
 					description: data.description ?? "",
-					tagsInput: data.tags.join(", "),
 					type: data.type,
 				});
 			})
@@ -122,7 +118,6 @@ function FlagSettingsPage() {
 			const payload: UpdateFlagPayload = {
 				name: values.name.trim(),
 				description: values.description?.trim() || null,
-				tags: parseTags(values.tagsInput ?? ""),
 				type: values.type,
 				environments: envState.map((env) => ({
 					environment: env.environment,
@@ -145,7 +140,6 @@ function FlagSettingsPage() {
 				reset({
 					name: updated.name,
 					description: updated.description ?? "",
-					tagsInput: updated.tags.join(", "),
 					type: updated.type,
 				});
 			} catch (err) {
@@ -163,7 +157,6 @@ function FlagSettingsPage() {
 
 	const nameId = useId();
 	const descId = useId();
-	const tagsId = useId();
 	const typeId = useId();
 
 	return (
@@ -177,8 +170,8 @@ function FlagSettingsPage() {
 						{flag?.key ?? flagKey ?? "---"}
 					</h1>
 					<p className="text-sm text-muted-foreground">
-						Здесь можно обновить описание, теги и состояние окружений для
-						выбранного флага.
+						Здесь можно обновить описание и состояние окружений для выбранного
+						флага.
 					</p>
 				</div>
 
@@ -252,19 +245,6 @@ function FlagSettingsPage() {
 								{...register("description")}
 								disabled={!canEdit}
 							/>
-						</div>
-
-						<div className="space-y-2">
-							<Label htmlFor={tagsId}>Теги</Label>
-							<Input
-								id={tagsId}
-								{...register("tagsInput")}
-								placeholder="growth, billing"
-								disabled={!canEdit}
-							/>
-							<p className="text-xs text-muted-foreground">
-								Теги помогают быстро искать флаги.
-							</p>
 						</div>
 
 						<div className="space-y-3">

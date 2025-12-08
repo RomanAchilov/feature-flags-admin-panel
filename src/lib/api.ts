@@ -38,7 +38,6 @@ export const FeatureFlagSchema = z.object({
 	key: z.string(),
 	name: z.string(),
 	description: z.string().nullable().optional(),
-	tags: z.array(z.string()),
 	type: FeatureFlagTypeSchema,
 	environments: z.array(FeatureFlagEnvironmentSchema),
 });
@@ -48,7 +47,6 @@ export const CreateFlagPayloadSchema = z.object({
 	key: z.string().min(1),
 	name: z.string().min(1),
 	description: z.string().nullable().optional(),
-	tags: z.array(z.string().min(1)).optional().default([]),
 	type: FeatureFlagTypeSchema.default("BOOLEAN"),
 	environments: z
 		.array(
@@ -75,7 +73,6 @@ export type CreateFlagPayload = z.infer<typeof CreateFlagPayloadSchema>;
 export const UpdateFlagPayloadSchema = z.object({
 	name: z.string().min(1).optional(),
 	description: z.string().nullable().optional(),
-	tags: z.array(z.string().min(1)).optional(),
 	type: FeatureFlagTypeSchema.optional(),
 	environments: z
 		.array(

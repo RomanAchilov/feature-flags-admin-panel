@@ -9,13 +9,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { type CreateFlagPayload, createFlag } from "@/lib/api";
-import { environmentsOrder, parseTags } from "@/lib/flag-utils";
+import { environmentsOrder } from "@/lib/flag-utils";
 
 const createFlagFormSchema = z.object({
-	key: z.string().min(1, "Укажите ключ"),
-	name: z.string().min(1, "Укажите имя"),
+	key: z.string().min(1, "Укажите ключ флага"),
+	name: z.string().min(1, "Укажите имя флага"),
 	description: z.string().optional(),
-	tagsInput: z.string().optional(),
 	type: z.enum(["BOOLEAN", "MULTIVARIANT"]),
 });
 
@@ -48,7 +47,6 @@ function CreateFlagPage() {
 			key: "",
 			name: "",
 			description: "",
-			tagsInput: "",
 			type: "BOOLEAN",
 		},
 		mode: "onChange",
@@ -62,7 +60,6 @@ function CreateFlagPage() {
 				key: value.key.trim(),
 				name: value.name.trim(),
 				description: value.description?.trim() || undefined,
-				tags: parseTags(value.tagsInput ?? ""),
 				type: value.type,
 				environments: defaultEnvironments,
 			};
@@ -81,10 +78,10 @@ function CreateFlagPage() {
 				<p className="text-sm uppercase tracking-wide text-muted-foreground">
 					Создание
 				</p>
-				<h1 className="text-3xl font-semibold">Создать новый флаг</h1>
+				<h1 className="text-3xl font-semibold">Новый флаг</h1>
 				<p className="text-sm text-muted-foreground">
-					Заполните базовые поля, чтобы добавить флаг и сразу перейти к
-					настройкам.
+					Заполните ключ, имя и описание. Все окружения создадутся в выключенном
+					состоянии.
 				</p>
 			</div>
 
@@ -107,7 +104,7 @@ function CreateFlagPage() {
 				</div>
 				<div className="space-y-2">
 					<Label>Название</Label>
-					<Input {...register("name")} placeholder="Эксперимент на чекауте" />
+					<Input {...register("name")} placeholder="Отображаемое имя флага" />
 					{errors.name ? (
 						<p className="text-xs text-destructive">{errors.name.message}</p>
 					) : null}
@@ -116,13 +113,8 @@ function CreateFlagPage() {
 					<Label>Описание</Label>
 					<Textarea
 						{...register("description")}
-						placeholder="Уточните цель флага, окружения и ожидаемое поведение."
+						placeholder="Что делает этот флаг и зачем он нужен"
 					/>
-				</div>
-				<div className="space-y-2">
-					<Label>Теги</Label>
-					<Input {...register("tagsInput")} placeholder="growth, billing" />
-					<p className="text-xs text-muted-foreground">Через запятую</p>
 				</div>
 				<div className="space-y-2">
 					<Label>Тип</Label>
@@ -136,7 +128,7 @@ function CreateFlagPage() {
 				</div>
 				<div className="flex justify-between gap-3 pt-4">
 					<Button variant="ghost" onClick={() => navigate({ to: "/" })}>
-						Отмена
+						Отменить
 					</Button>
 					<Button type="submit" disabled={creating}>
 						{creating ? (
