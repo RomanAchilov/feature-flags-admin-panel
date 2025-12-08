@@ -4,25 +4,25 @@ import { Loader2, Settings2 } from "lucide-react";
 import { useCallback, useEffect, useId, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+import { EnvironmentCard } from "@/components/EnvironmentCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-	collectSegmentTargets,
-	collectUserTargets,
-	environmentsOrder,
-	parseTags,
-	type EnvState,
-} from "@/lib/flag-utils";
-import {
+	type FeatureFlag,
 	FeatureFlagTypeSchema,
 	fetchFlag,
-	type FeatureFlag,
 	type UpdateFlagPayload,
 	updateFlag,
 } from "@/lib/api";
-import { EnvironmentCard } from "@/components/EnvironmentCard";
+import {
+	collectSegmentTargets,
+	collectUserTargets,
+	type EnvState,
+	environmentsOrder,
+	parseTags,
+} from "@/lib/flag-utils";
 
 const flagSettingsSchema = z.object({
 	name: z.string().min(1, "Укажите имя флага"),

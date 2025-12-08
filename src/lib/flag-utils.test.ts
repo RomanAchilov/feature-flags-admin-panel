@@ -3,9 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
 	collectSegmentTargets,
 	collectUserTargets,
+	type EnvState,
 	environmentsOrder,
 	parseTags,
-	type EnvState,
 } from "./flag-utils";
 
 const baseEnv: EnvState = {

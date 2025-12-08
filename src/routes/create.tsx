@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { createFlag, type CreateFlagPayload } from "@/lib/api";
+import { type CreateFlagPayload, createFlag } from "@/lib/api";
 import { environmentsOrder, parseTags } from "@/lib/flag-utils";
 
 const createFlagFormSchema = z.object({
