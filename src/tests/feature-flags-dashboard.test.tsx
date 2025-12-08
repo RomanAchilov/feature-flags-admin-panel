@@ -12,7 +12,7 @@ import { FeatureFlagsDashboard } from "@/routes/index";
 
 const apiMocks = vi.hoisted(() => ({
 	fetchFlags: vi.fn(),
-	updateFlag: vi.fn(),
+	toggleFlagEnvironment: vi.fn(),
 	deleteFlag: vi.fn(),
 }));
 
@@ -71,11 +71,11 @@ const baseFlag = {
 describe("FeatureFlagsDashboard confirmations", () => {
 	beforeEach(() => {
 		apiMocks.fetchFlags.mockReset();
-		apiMocks.updateFlag.mockReset();
+		apiMocks.toggleFlagEnvironment.mockReset();
 		apiMocks.deleteFlag.mockReset();
 
 		apiMocks.fetchFlags.mockResolvedValue([baseFlag]);
-		apiMocks.updateFlag.mockResolvedValue(baseFlag);
+		apiMocks.toggleFlagEnvironment.mockResolvedValue(baseFlag);
 		apiMocks.deleteFlag.mockResolvedValue(undefined);
 	});
 
@@ -111,9 +111,11 @@ describe("FeatureFlagsDashboard confirmations", () => {
 		fireEvent.click(confirmButton);
 
 		await waitFor(() =>
-			expect(apiMocks.updateFlag).toHaveBeenCalledWith(baseFlag.key, {
-				environments: [{ environment: "production", enabled: true }],
-			}),
+			expect(apiMocks.toggleFlagEnvironment).toHaveBeenCalledWith(
+				baseFlag.key,
+				"production",
+				true,
+			),
 		);
 		expect(screen.queryByText("Включить production")).toBeNull();
 	});

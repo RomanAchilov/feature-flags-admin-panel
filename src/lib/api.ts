@@ -198,6 +198,37 @@ export async function updateFlag(
 	return body.data;
 }
 
+const ToggleEnvironmentResponseSchema = z.object({
+	data: z.object({
+		key: z.string(),
+		environment: FeatureEnvironmentSchema,
+		enabled: z.boolean(),
+	}),
+});
+
+export async function toggleFlagEnvironment(
+	key: string,
+	environment: FeatureEnvironment,
+	enabled: boolean,
+): Promise<FeatureFlag> {
+	const res = await fetch(
+		withBase(
+			`/flags/${encodeURIComponent(key)}/environments/${encodeURIComponent(environment)}`,
+		),
+		{
+			method: "PATCH",
+			headers: defaultHeaders,
+			body: JSON.stringify({ enabled }),
+		},
+	);
+
+	await handleResponse(res, ToggleEnvironmentResponseSchema);
+
+	// Fetch the updated flag to keep UI in sync with backend calculations.
+	const updatedFlag = await fetchFlag(key);
+	return updatedFlag;
+}
+
 export async function deleteFlag(key: string): Promise<void> {
 	const res = await fetch(withBase(`/flags/${encodeURIComponent(key)}`), {
 		method: "DELETE",

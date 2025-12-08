@@ -27,7 +27,7 @@ import {
 	type FeatureFlag,
 	type FeatureFlagEnvironment,
 	fetchFlags,
-	updateFlag,
+	toggleFlagEnvironment,
 } from "@/lib/api";
 import { environmentsOrder } from "@/lib/flag-utils";
 import { cn } from "@/lib/utils";
@@ -99,9 +99,7 @@ export function FeatureFlagsDashboard() {
 			setError(null);
 			setInfo(null);
 			try {
-				await updateFlag(flagKey, {
-					environments: [{ environment: env, enabled }],
-				});
+				await toggleFlagEnvironment(flagKey, env, enabled);
 				setInfo("Состояние обновлено");
 				await refreshFlags();
 			} catch (err) {
