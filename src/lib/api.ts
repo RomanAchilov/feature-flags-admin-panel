@@ -20,6 +20,20 @@ const SegmentTargetSchema = z.object({
 	include: z.boolean(),
 });
 
+const SegmentNameSchema = z
+	.string()
+	.trim()
+	.min(1)
+	.max(128)
+	.regex(
+		/^[a-zA-Z0-9._:-]+$/,
+		"Only letters, numbers, dot, dash, underscore and colon are allowed",
+	);
+
+const SegmentSchema = z.object({
+	name: SegmentNameSchema,
+});
+
 export const FeatureFlagEnvironmentSchema = z.object({
 	environment: FeatureEnvironmentSchema,
 	enabled: z.boolean(),
@@ -111,6 +125,8 @@ const defaultHeaders = {
 
 const FlagsResponseSchema = z.object({ data: z.array(FeatureFlagSchema) });
 const FlagResponseSchema = z.object({ data: FeatureFlagSchema });
+const SegmentsResponseSchema = z.object({ data: z.array(SegmentSchema) });
+const SegmentResponseSchema = z.object({ data: SegmentSchema });
 
 const parseJson = async (res: Response) => {
 	try {
@@ -193,6 +209,26 @@ export async function updateFlag(
 
 	const body = await handleResponse(res, FlagResponseSchema);
 	return body.data;
+}
+
+export async function fetchSegments(): Promise<string[]> {
+	const res = await fetch(withBase("/segments"), {
+		headers: defaultHeaders,
+	});
+	const body = await handleResponse(res, SegmentsResponseSchema);
+	return body.data.map((segment) => segment.name);
+}
+
+export async function createSegment(name: string): Promise<string> {
+	const parsed = SegmentSchema.parse({ name });
+	const normalized = parsed.name.trim().toLowerCase();
+	const res = await fetch(withBase("/segments"), {
+		method: "POST",
+		headers: defaultHeaders,
+		body: JSON.stringify({ name: normalized }),
+	});
+	const body = await handleResponse(res, SegmentResponseSchema);
+	return body.data.name;
 }
 
 const ToggleEnvironmentResponseSchema = z.object({

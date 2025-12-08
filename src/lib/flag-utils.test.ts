@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
 	collectSegmentTargets,
-	collectUserTargets,
 	type EnvState,
 	environmentsOrder,
 } from "./flag-utils";
@@ -16,31 +15,46 @@ const baseEnv: EnvState = {
 	forceDisabled: null,
 	userTargets: [],
 	segmentTargets: [],
-	includeInput: "user-a, user-b",
-	excludeInput: "blocked",
 	segmentInclude: ["employee"],
 	segmentExclude: ["beta"],
-	segmentIncludeDraft: "vip",
-	segmentExcludeDraft: "old_customer",
 	phoneIncludeDraft: "+7 999 111 2233",
 	phoneExcludeDraft: "+7 999 111 0000",
 };
 
 describe("flag-utils", () => {
-	it("collectUserTargets returns include and exclude entries", () => {
-		const targets = collectUserTargets([baseEnv]);
-		expect(targets).toEqual([
-			{ environment: environmentsOrder[0], userId: "user-a", include: true },
-			{ environment: environmentsOrder[0], userId: "user-b", include: true },
-			{ environment: environmentsOrder[0], userId: "blocked", include: false },
-		]);
-	});
-
 	it("collectSegmentTargets normalizes segments and phones", () => {
-		const targets = collectSegmentTargets([baseEnv]);
+		const targets = collectSegmentTargets([
+			{
+				...baseEnv,
+				segmentInclude: [...baseEnv.segmentInclude, "VIP"],
+				segmentExclude: [...baseEnv.segmentExclude, "old_customer", "beta"],
+				phoneIncludeDraft: "+7 999 111 2233",
+				phoneExcludeDraft: "+7 901 000 9900",
+			},
+		]);
 		expect(targets).toEqual([
 			{ environment: environmentsOrder[0], segment: "employee", include: true },
 			{ environment: environmentsOrder[0], segment: "vip", include: true },
+			{
+				environment: environmentsOrder[0],
+				segment: "phone:79991112233",
+				include: true,
+			},
+			{
+				environment: environmentsOrder[0],
+				segment: "phone-last2:33",
+				include: true,
+			},
+			{
+				environment: environmentsOrder[0],
+				segment: "phone-prefix3:999",
+				include: true,
+			},
+			{
+				environment: environmentsOrder[0],
+				segment: "phone-last4:2233",
+				include: true,
+			},
 			{ environment: environmentsOrder[0], segment: "beta", include: false },
 			{
 				environment: environmentsOrder[0],
@@ -49,22 +63,22 @@ describe("flag-utils", () => {
 			},
 			{
 				environment: environmentsOrder[0],
-				segment: "phone:79991112233",
-				include: true,
-			},
-			{
-				environment: environmentsOrder[0],
-				segment: "phone-last4:2233",
-				include: true,
-			},
-			{
-				environment: environmentsOrder[0],
-				segment: "phone:79991110000",
+				segment: "phone:79010009900",
 				include: false,
 			},
 			{
 				environment: environmentsOrder[0],
-				segment: "phone-last4:0000",
+				segment: "phone-last2:00",
+				include: false,
+			},
+			{
+				environment: environmentsOrder[0],
+				segment: "phone-prefix3:901",
+				include: false,
+			},
+			{
+				environment: environmentsOrder[0],
+				segment: "phone-last4:9900",
 				include: false,
 			},
 		]);

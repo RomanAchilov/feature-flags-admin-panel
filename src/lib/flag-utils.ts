@@ -9,47 +9,32 @@ export const environmentsOrder: FeatureEnvironment[] = [
 export type EnvState = FeatureFlagEnvironment & {
 	rolloutPercentage: number | null;
 	rolloutEnabled: boolean;
-	includeInput: string;
-	excludeInput: string;
 	segmentInclude: string[];
 	segmentExclude: string[];
-	segmentIncludeDraft: string;
-	segmentExcludeDraft: string;
 	phoneIncludeDraft: string;
 	phoneExcludeDraft: string;
 };
 
-export const collectUserTargets = (envs: EnvState[]) => {
-	const targets: {
-		environment: FeatureEnvironment;
-		userId: string;
-		include: boolean;
-	}[] = [];
-
-	const splitIds = (input: string) =>
-		input
-			.split(/[,\\n]/)
-			.map((id) => id.trim())
-			.filter(Boolean);
-
-	for (const env of envs) {
-		for (const id of splitIds(env.includeInput)) {
-			targets.push({
-				environment: env.environment,
-				userId: id,
-				include: true,
-			});
-		}
-		for (const id of splitIds(env.excludeInput)) {
-			targets.push({
-				environment: env.environment,
-				userId: id,
-				include: false,
-			});
+export const derivePhoneSegments = (input: string) => {
+	const digits = input.replace(/\D/g, "");
+	if (!digits) return [];
+	const parts = [`phone:${digits}`];
+	if (digits.length >= 2) {
+		parts.push(`phone-last2:${digits.slice(-2)}`);
+	}
+	if (digits.length >= 3) {
+		const prefix =
+			digits.startsWith("7") && digits.length >= 4
+				? digits.slice(1, 4)
+				: digits.slice(0, 3);
+		if (prefix.length === 3) {
+			parts.push(`phone-prefix3:${prefix}`);
 		}
 	}
-
-	return targets;
+	if (digits.length >= 4) {
+		parts.push(`phone-last4:${digits.slice(-4)}`);
+	}
+	return Array.from(new Set(parts));
 };
 
 export const collectSegmentTargets = (envs: EnvState[]) => {
@@ -59,58 +44,35 @@ export const collectSegmentTargets = (envs: EnvState[]) => {
 		include: boolean;
 	}[] = [];
 
-	const normalize = (segments: string[], draft: string) => {
-		const withDraft = draft.trim() ? [...segments, draft.trim()] : segments;
-		return Array.from(
+	const normalize = (segments: string[]) =>
+		Array.from(
 			new Set(
-				withDraft
+				segments
 					.map((segment) => segment.trim())
 					.filter(Boolean)
 					.map((segment) => segment.toLowerCase()),
 			),
 		);
-	};
-
-	const normalizePhoneSegments = (input: string) => {
-		const digits = input.replace(/\D/g, "");
-		if (!digits) return [];
-		const parts = [`phone:${digits}`];
-		if (digits.length >= 4) {
-			parts.push(`phone-last4:${digits.slice(-4)}`);
-		}
-		return parts;
-	};
 
 	for (const env of envs) {
-		for (const segment of normalize(
-			env.segmentInclude,
-			env.segmentIncludeDraft,
-		)) {
-			targets.push({
-				environment: env.environment,
-				segment,
-				include: true,
-			});
-		}
-		for (const segment of normalize(
-			env.segmentExclude,
-			env.segmentExcludeDraft,
-		)) {
-			targets.push({
-				environment: env.environment,
-				segment,
-				include: false,
-			});
-		}
+		const includeSegments = new Set([
+			...normalize(env.segmentInclude),
+			...derivePhoneSegments(env.phoneIncludeDraft),
+		]);
+		const excludeSegments = new Set([
+			...normalize(env.segmentExclude),
+			...derivePhoneSegments(env.phoneExcludeDraft),
+		]);
 
-		for (const segment of normalizePhoneSegments(env.phoneIncludeDraft)) {
+		for (const segment of includeSegments) {
+			if (excludeSegments.has(segment)) continue;
 			targets.push({
 				environment: env.environment,
 				segment,
 				include: true,
 			});
 		}
-		for (const segment of normalizePhoneSegments(env.phoneExcludeDraft)) {
+		for (const segment of excludeSegments) {
 			targets.push({
 				environment: env.environment,
 				segment,

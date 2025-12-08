@@ -1,6 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createFlag, type FeatureFlag, fetchFlag, fetchFlags } from "./api";
+import {
+	createFlag,
+	createSegment,
+	type FeatureFlag,
+	fetchFlag,
+	fetchFlags,
+	fetchSegments,
+} from "./api";
 
 const mockFlag: FeatureFlag = {
 	id: "flag-1",
@@ -72,6 +79,34 @@ describe("api client", () => {
 			expect.objectContaining({
 				method: "POST",
 				body: expect.stringContaining('"key":"flag-1"'),
+			}),
+		);
+	});
+
+	it("fetches available segments", async () => {
+		const fetchMock = mockFetch(
+			jsonResponse({ data: [{ name: "employee" }, { name: "vip" }] }),
+		);
+
+		const segments = await fetchSegments();
+
+		expect(segments).toEqual(["employee", "vip"]);
+		expect(fetchMock).toHaveBeenCalledWith("/api/segments", {
+			headers: expect.objectContaining({ "x-user-id": "admin-panel" }),
+		});
+	});
+
+	it("creates segment with normalized name", async () => {
+		const fetchMock = mockFetch(jsonResponse({ data: { name: "vip" } }, 201));
+
+		const created = await createSegment(" VIP ");
+
+		expect(created).toBe("vip");
+		expect(fetchMock).toHaveBeenCalledWith(
+			"/api/segments",
+			expect.objectContaining({
+				method: "POST",
+				body: JSON.stringify({ name: "vip" }),
 			}),
 		);
 	});

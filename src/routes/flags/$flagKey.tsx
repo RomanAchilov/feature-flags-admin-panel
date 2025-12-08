@@ -1,24 +1,32 @@
-﻿import { zodResolver } from "@hookform/resolvers/zod";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Loader2, Settings2 } from "lucide-react";
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { EnvironmentCard } from "@/components/EnvironmentCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
+	createSegment,
 	type FeatureFlag,
 	FeatureFlagTypeSchema,
 	fetchFlag,
+	fetchSegments,
 	type UpdateFlagPayload,
 	updateFlag,
 } from "@/lib/api";
 import {
 	collectSegmentTargets,
-	collectUserTargets,
 	type EnvState,
 	environmentsOrder,
 } from "@/lib/flag-utils";
@@ -35,12 +43,35 @@ export const Route = createFileRoute("/flags/$flagKey")({
 	component: () => <FlagSettingsPage />,
 });
 
+function mergeSegments(current: string[], incoming: string[]) {
+	const next = new Set(
+		[...current, ...incoming]
+			.map((segment) => segment.trim().toLowerCase())
+			.filter(Boolean),
+	);
+	return Array.from(next);
+}
+
+function collectSegmentsFromState(envs: EnvState[]) {
+	return Array.from(
+		new Set(
+			envs.flatMap((env) => [...env.segmentInclude, ...env.segmentExclude]),
+		),
+	);
+}
+
 function FlagSettingsPage() {
 	const params = Route.useParams();
 	const flagKey = params.flagKey;
 
 	const [flag, setFlag] = useState<FeatureFlag | null>(null);
 	const [envState, setEnvState] = useState<EnvState[]>([]);
+	const [activeEnvironment, setActiveEnvironment] = useState<
+		EnvState["environment"] | null
+	>(null);
+	const [availableSegments, setAvailableSegments] = useState<string[]>([]);
+	const [segmentsLoading, setSegmentsLoading] = useState(false);
+	const [segmentsError, setSegmentsError] = useState<string | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -60,6 +91,11 @@ function FlagSettingsPage() {
 		},
 	});
 
+	const envSelectId = useId();
+	const nameId = useId();
+	const descId = useId();
+	const typeId = useId();
+
 	useEffect(() => {
 		if (!flagKey) {
 			setError("Неверный путь");
@@ -74,7 +110,14 @@ function FlagSettingsPage() {
 			.then((data) => {
 				if (cancelled) return;
 				setFlag(data);
-				setEnvState(buildEnvState(data));
+				const builtState = buildEnvState(data);
+				setEnvState(builtState);
+				setActiveEnvironment(
+					(prev) => prev ?? builtState[0]?.environment ?? environmentsOrder[0],
+				);
+				setAvailableSegments((prev) =>
+					mergeSegments(prev, collectSegmentsFromState(builtState)),
+				);
 				reset({
 					name: data.name,
 					description: data.description ?? "",
@@ -97,6 +140,37 @@ function FlagSettingsPage() {
 		};
 	}, [flagKey, reset]);
 
+	useEffect(() => {
+		let cancelled = false;
+		setSegmentsLoading(true);
+		setSegmentsError(null);
+		void fetchSegments()
+			.then((segments) => {
+				if (cancelled) return;
+				setAvailableSegments((prev) => mergeSegments(prev, segments));
+			})
+			.catch((err) => {
+				if (cancelled) return;
+				setSegmentsError(
+					err instanceof Error ? err.message : "Не удалось загрузить сегменты",
+				);
+			})
+			.finally(() => {
+				if (cancelled) return;
+				setSegmentsLoading(false);
+			});
+
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
+	useEffect(() => {
+		setAvailableSegments((prev) =>
+			mergeSegments(prev, collectSegmentsFromState(envState)),
+		);
+	}, [envState]);
+
 	const handleEnvChange = useCallback(
 		(environment: EnvState["environment"], changes: Partial<EnvState>) => {
 			setEnvState((prev) =>
@@ -107,6 +181,20 @@ function FlagSettingsPage() {
 		},
 		[],
 	);
+
+	const handleCreateSegment = useCallback(async (name: string) => {
+		try {
+			const created = await createSegment(name);
+			setSegmentsError(null);
+			setAvailableSegments((prev) => mergeSegments(prev, [created]));
+			return created;
+		} catch (err) {
+			const message =
+				err instanceof Error ? err.message : "Не удалось создать сегмент";
+			setSegmentsError(message);
+			throw new Error(message);
+		}
+	}, []);
 
 	const onSave = useCallback(
 		async (values: FlagSettingsForm) => {
@@ -128,14 +216,18 @@ function FlagSettingsPage() {
 					forceEnabled: null,
 					forceDisabled: null,
 				})),
-				userTargets: collectUserTargets(envState),
+				userTargets: [],
 				segmentTargets: collectSegmentTargets(envState),
 			};
 
 			try {
 				const updated = await updateFlag(flag.key, payload);
 				setFlag(updated);
-				setEnvState(buildEnvState(updated));
+				const builtState = buildEnvState(updated);
+				setEnvState(builtState);
+				setAvailableSegments((prev) =>
+					mergeSegments(prev, collectSegmentsFromState(builtState)),
+				);
 				setInfo("Изменения сохранены");
 				reset({
 					name: updated.name,
@@ -155,13 +247,16 @@ function FlagSettingsPage() {
 
 	const canEdit = Boolean(flag && !loading);
 
-	const nameId = useId();
-	const descId = useId();
-	const typeId = useId();
+	const currentEnv = useMemo(
+		() =>
+			envState.find((item) => item.environment === activeEnvironment) ??
+			envState[0],
+		[activeEnvironment, envState],
+	);
 
 	return (
 		<div className="min-h-screen bg-background text-foreground">
-			<div className="mx-auto max-w-6xl px-6 pb-12 pt-8 space-y-6">
+			<div className="mx-auto max-w-6xl space-y-6 px-6 pb-12 pt-8">
 				<div className="space-y-2">
 					<p className="text-sm uppercase tracking-wide text-muted-foreground">
 						Настройки флага
@@ -177,10 +272,10 @@ function FlagSettingsPage() {
 
 				<div className="flex flex-wrap gap-3">
 					<Button variant="outline" size="sm" asChild>
-						<Link to="/">← Назад</Link>
+						<Link to="/">&lt;- Назад</Link>
 					</Button>
 					<Button variant="ghost" size="sm" disabled>
-						ID {flag?.id ?? "—"}
+						ID {flag?.id ?? "-"}
 					</Button>
 				</div>
 
@@ -248,29 +343,71 @@ function FlagSettingsPage() {
 						</div>
 
 						<div className="space-y-3">
-							<div className="flex items-center justify-between">
-								<h2 className="text-lg font-semibold">Окружения</h2>
-								<p className="text-xs text-muted-foreground">
-									Детальная настройка по средам.
-								</p>
-							</div>
-							<div className="grid gap-4 md:grid-cols-2">
-								{envState.map((env) => (
-									<EnvironmentCard
-										key={env.environment}
-										env={env}
-										onChange={(changes) =>
-											handleEnvChange(env.environment, changes)
+							<div className="flex flex-wrap items-center justify-between gap-3">
+								<div>
+									<h2 className="text-lg font-semibold">Окружения</h2>
+									<p className="text-xs text-muted-foreground">
+										Настраивайте одно окружение за раз через селект.
+									</p>
+								</div>
+								<div className="flex items-center gap-2">
+									<Label
+										htmlFor={envSelectId}
+										className="text-xs text-muted-foreground"
+									>
+										Окружение
+									</Label>
+									<Select
+										value={currentEnv?.environment ?? ""}
+										onValueChange={(value) =>
+											setActiveEnvironment(value as EnvState["environment"])
 										}
-									/>
-								))}
+									>
+										<SelectTrigger
+											id={envSelectId}
+											className="min-w-[140px]"
+											disabled={!canEdit}
+										>
+											<SelectValue placeholder="Выберите среду" />
+										</SelectTrigger>
+										<SelectContent>
+											{environmentsOrder.map((env) => (
+												<SelectItem key={env} value={env}>
+													{env}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</div>
 							</div>
+							{segmentsLoading ? (
+								<p className="text-xs text-muted-foreground">
+									Загружаем доступные сегменты...
+								</p>
+							) : null}
+							{segmentsError ? (
+								<p className="text-xs text-destructive">{segmentsError}</p>
+							) : null}
+							{currentEnv ? (
+								<EnvironmentCard
+									env={currentEnv}
+									availableSegments={availableSegments}
+									onChange={(changes) =>
+										handleEnvChange(currentEnv.environment, changes)
+									}
+									onCreateSegment={handleCreateSegment}
+								/>
+							) : (
+								<div className="rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
+									Окружение не выбрано.
+								</div>
+							)}
 						</div>
 
 						<div className="flex flex-wrap items-center gap-3">
 							<Button type="submit" disabled={!canEdit || saving}>
 								{saving ? (
-									<Loader2 className="h-4 w-4 animate-spin" />
+									<Loader2 className="mr-2 h-4 w-4 animate-spin" />
 								) : (
 									<Settings2 className="mr-2 h-4 w-4" />
 								)}
@@ -292,14 +429,6 @@ function buildEnvState(flag: FeatureFlag): EnvState[] {
 		const found = flag.environments.find(
 			(item) => item.environment === environment,
 		);
-		const includeUsers =
-			found?.userTargets
-				?.filter((target) => target.include)
-				.map((target) => target.userId) ?? [];
-		const excludeUsers =
-			found?.userTargets
-				?.filter((target) => !target.include)
-				.map((target) => target.userId) ?? [];
 
 		const includeSegments =
 			found?.segmentTargets
@@ -321,12 +450,8 @@ function buildEnvState(flag: FeatureFlag): EnvState[] {
 			forceDisabled: found?.forceDisabled ?? null,
 			userTargets: found?.userTargets ?? [],
 			segmentTargets: found?.segmentTargets ?? [],
-			includeInput: includeUsers.join(", "),
-			excludeInput: excludeUsers.join(", "),
 			segmentInclude: includeSegments,
 			segmentExclude: excludeSegments,
-			segmentIncludeDraft: "",
-			segmentExcludeDraft: "",
 			phoneIncludeDraft: "",
 			phoneExcludeDraft: "",
 		};
