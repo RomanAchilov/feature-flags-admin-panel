@@ -1,8 +1,29 @@
-import { Hash, Loader2, Phone, Plus, X } from "lucide-react";
-import { useId, useMemo, useState } from "react";
+import {
+	AlertTriangle,
+	Cake,
+	Hash,
+	Loader2,
+	Percent,
+	Phone,
+	Plus,
+	Users,
+	X,
+} from "lucide-react";
+import { useEffect, useId, useMemo } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { withMask } from "use-mask-input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+	Field,
+	FieldContent,
+	FieldDescription,
+	FieldGroup,
+	FieldSet,
+	FieldTitle,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
 	Select,
 	SelectContent,
@@ -14,10 +35,13 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import {
 	addSegment,
+	deriveBirthdateSegments,
 	derivePhoneSegments,
 	type EnvState,
+	formatToRuDate,
 	getSegmentDescription,
 	type PhoneMatchMode,
+	parseRuDate,
 	phoneMatchModeLabels,
 } from "@/lib/flag-utils";
 
@@ -28,192 +52,436 @@ type EnvironmentCardProps = {
 	onCreateSegment: (name: string) => Promise<string>;
 };
 
+type EnvFormValues = {
+	enabled: boolean;
+	rolloutEnabled: boolean;
+	rolloutPercentage: number;
+	segmentInclude: string[];
+	segmentExclude: string[];
+	phoneIncludeDraft: string;
+	phoneExcludeDraft: string;
+	phoneIncludeMode: PhoneMatchMode;
+	phoneExcludeMode: PhoneMatchMode;
+	birthdateIncludeDraft: string;
+	birthdateExcludeDraft: string;
+	newSegment: string;
+};
+
 export function EnvironmentCard({
 	env,
 	availableSegments,
 	onChange,
 	onCreateSegment,
 }: EnvironmentCardProps) {
-	const phoneIncludeId = useId();
-	const phoneExcludeId = useId();
+	const formId = useId();
 
-	const [newSegment, setNewSegment] = useState("");
-	const [creatingSegment, setCreatingSegment] = useState(false);
-	const [segmentError, setSegmentError] = useState<string | null>(null);
+	const { control, watch, setValue, getValues, formState } =
+		useForm<EnvFormValues>({
+			defaultValues: {
+				enabled: env.enabled,
+				rolloutEnabled: env.rolloutEnabled,
+				rolloutPercentage: env.rolloutPercentage ?? 0,
+				segmentInclude: env.segmentInclude,
+				segmentExclude: env.segmentExclude,
+				phoneIncludeDraft: env.phoneIncludeDraft,
+				phoneExcludeDraft: env.phoneExcludeDraft,
+				phoneIncludeMode: env.phoneIncludeMode,
+				phoneExcludeMode: env.phoneExcludeMode,
+				birthdateIncludeDraft: env.birthdateIncludeDraft,
+				birthdateExcludeDraft: env.birthdateExcludeDraft,
+				newSegment: "",
+			},
+		});
+
+	// Синхронизируем при изменении env извне
+	useEffect(() => {
+		setValue("enabled", env.enabled);
+		setValue("rolloutEnabled", env.rolloutEnabled);
+		setValue("rolloutPercentage", env.rolloutPercentage ?? 0);
+		setValue("segmentInclude", env.segmentInclude);
+		setValue("segmentExclude", env.segmentExclude);
+		setValue("phoneIncludeDraft", env.phoneIncludeDraft);
+		setValue("phoneExcludeDraft", env.phoneExcludeDraft);
+		setValue("phoneIncludeMode", env.phoneIncludeMode);
+		setValue("phoneExcludeMode", env.phoneExcludeMode);
+		setValue("birthdateIncludeDraft", env.birthdateIncludeDraft);
+		setValue("birthdateExcludeDraft", env.birthdateExcludeDraft);
+	}, [env, setValue]);
+
+	const enabled = watch("enabled");
+	const rolloutEnabled = watch("rolloutEnabled");
+	const rolloutPercentage = watch("rolloutPercentage");
+	const segmentInclude = watch("segmentInclude");
+	const segmentExclude = watch("segmentExclude");
+	const phoneIncludeDraft = watch("phoneIncludeDraft");
+	const phoneExcludeDraft = watch("phoneExcludeDraft");
+	const phoneIncludeMode = watch("phoneIncludeMode");
+	const phoneExcludeMode = watch("phoneExcludeMode");
+	const birthdateIncludeDraft = watch("birthdateIncludeDraft");
+	const birthdateExcludeDraft = watch("birthdateExcludeDraft");
+
+	// Проверяем есть ли какие-то правила таргетинга
+	const hasTargetingRules =
+		segmentInclude.length > 0 ||
+		segmentExclude.length > 0 ||
+		rolloutEnabled ||
+		phoneIncludeDraft ||
+		phoneExcludeDraft ||
+		birthdateIncludeDraft ||
+		birthdateExcludeDraft;
+
+	// Описание текущего состояния для пользователя
+	const statusDescription = useMemo(() => {
+		if (!enabled) {
+			return "Флаг выключен для всех пользователей";
+		}
+		const parts: string[] = [];
+		if (segmentInclude.length > 0) {
+			parts.push(`${segmentInclude.length} сегмент(ов) включено`);
+		}
+		if (segmentExclude.length > 0) {
+			parts.push(`${segmentExclude.length} исключено`);
+		}
+		if (rolloutEnabled && typeof rolloutPercentage === "number") {
+			parts.push(`${rolloutPercentage}% раскатка`);
+		}
+		if (parts.length === 0) {
+			return "Флаг включен для всех пользователей";
+		}
+		return parts.join(" · ");
+	}, [
+		enabled,
+		segmentInclude,
+		segmentExclude,
+		rolloutEnabled,
+		rolloutPercentage,
+	]);
+
+	// Хелпер для обновления родительского состояния
+	const updateParent = (changes: Partial<EnvState>) => {
+		onChange(changes);
+	};
 
 	const handleCreateSegment = async () => {
-		const value = newSegment.trim();
+		const value = getValues("newSegment").trim();
 		if (!value) {
-			setSegmentError("Введите название сегмента");
 			return;
 		}
-		setSegmentError(null);
-		setCreatingSegment(true);
 		try {
 			await onCreateSegment(value);
-			setNewSegment("");
-		} catch (error) {
-			setSegmentError(
-				error instanceof Error ? error.message : "Не удалось создать сегмент",
-			);
-		} finally {
-			setCreatingSegment(false);
+			setValue("newSegment", "");
+		} catch {
+			// Ошибка обрабатывается в родителе
+		}
+	};
+
+	const handleAddSegment = (type: "include" | "exclude", segment: string) => {
+		if (type === "include") {
+			const updated = addSegment(segmentInclude, segment);
+			setValue("segmentInclude", updated);
+			updateParent({ segmentInclude: updated });
+		} else {
+			const updated = addSegment(segmentExclude, segment);
+			setValue("segmentExclude", updated);
+			updateParent({ segmentExclude: updated });
+		}
+	};
+
+	const handleRemoveSegment = (
+		type: "include" | "exclude",
+		segment: string,
+	) => {
+		if (type === "include") {
+			const updated = segmentInclude.filter((s) => s !== segment);
+			setValue("segmentInclude", updated);
+			updateParent({ segmentInclude: updated });
+		} else {
+			const updated = segmentExclude.filter((s) => s !== segment);
+			setValue("segmentExclude", updated);
+			updateParent({ segmentExclude: updated });
 		}
 	};
 
 	return (
-		<div className="flex flex-col gap-4 rounded-xl border bg-card p-4">
-			<div className="flex items-center justify-between gap-3">
-				<div>
-					<p className="text-xs uppercase tracking-wide text-muted-foreground">
-						{env.environment}
-					</p>
-					<p className="text-sm text-muted-foreground">
-						{env.enabled ? "Флаг включен" : "Флаг выключен"}{" "}
-						{env.rolloutEnabled && typeof env.rolloutPercentage === "number"
-							? `(выкатка ${env.rolloutPercentage}%)`
-							: ""}
-					</p>
-				</div>
-				<div className="flex items-center gap-2 text-xs text-muted-foreground">
-					<span>Активно</span>
-					<Switch
-						checked={env.enabled}
-						onCheckedChange={(checked) => onChange({ enabled: checked })}
-					/>
-				</div>
-			</div>
-
-			<div className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-				<span>Постепенная выкатка по проценту</span>
-				<Switch
-					checked={env.rolloutEnabled}
-					onCheckedChange={(checked) =>
-						onChange({
-							rolloutEnabled: checked,
-							rolloutPercentage: checked ? (env.rolloutPercentage ?? 0) : null,
-						})
-					}
-				/>
-			</div>
-
-			{env.rolloutEnabled ? (
-				<div className="space-y-2">
-					<div className="flex items-center justify-between text-xs text-muted-foreground">
-						<span>Доля аудитории</span>
-						<span className="font-semibold">{env.rolloutPercentage ?? 0}%</span>
+		<div className="flex flex-col gap-6 rounded-xl border bg-card p-6">
+			{/* Главный переключатель */}
+			<Field orientation="horizontal">
+				<FieldContent>
+					<div className="flex items-center gap-2">
+						<FieldTitle className="text-sm font-semibold uppercase tracking-wide">
+							{env.environment}
+						</FieldTitle>
+						<Badge variant={enabled ? "default" : "secondary"}>
+							{enabled ? "Активен" : "Выключен"}
+						</Badge>
 					</div>
-					<Slider
-						min={0}
-						max={100}
-						step={5}
-						value={[env.rolloutPercentage ?? 0]}
-						onValueChange={(values) =>
-							onChange({ rolloutPercentage: values[0] ?? 0 })
-						}
-					/>
-				</div>
+					<FieldDescription>{statusDescription}</FieldDescription>
+				</FieldContent>
+				<Controller
+					name="enabled"
+					control={control}
+					render={({ field }) => (
+						<div className="flex flex-col items-end gap-1">
+							<Switch
+								id={`${formId}-enabled`}
+								checked={field.value}
+								onCheckedChange={(checked) => {
+									field.onChange(checked);
+									updateParent({ enabled: checked });
+								}}
+							/>
+							<span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+								Вкл / Выкл
+							</span>
+						</div>
+					)}
+				/>
+			</Field>
+
+			{/* Предупреждение когда флаг выключен, но есть настройки */}
+			{!enabled && hasTargetingRules ? (
+				<Alert variant="warning">
+					<AlertTriangle />
+					<AlertDescription>
+						Флаг выключен — настройки таргетинга ниже сохранятся, но не будут
+						применяться. Включите флаг, чтобы правила заработали.
+					</AlertDescription>
+				</Alert>
 			) : null}
 
-			<div className="space-y-3 rounded-md border p-3">
-				<div className="flex flex-wrap items-center justify-between gap-2">
-					<div>
-						<p className="text-sm font-medium">Сегменты</p>
-						<p className="text-xs text-muted-foreground">
-							Выбирайте готовые сегменты, свободный ввод отключён.
-						</p>
-					</div>
-					<div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-						<Input
-							value={newSegment}
-							onChange={(event) => setNewSegment(event.target.value)}
-							placeholder="vip, beta, employee"
-							className="text-sm sm:w-48"
+			{/* Постепенная выкатка */}
+			<FieldSet>
+				<Field orientation="horizontal">
+					<FieldContent>
+						<div className="flex items-center gap-2">
+							<div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/10">
+								<Percent className="h-4 w-4 text-violet-400" />
+							</div>
+							<div>
+								<FieldTitle>Постепенная раскатка</FieldTitle>
+								<FieldDescription>Процент аудитории</FieldDescription>
+							</div>
+						</div>
+					</FieldContent>
+					<Controller
+						name="rolloutEnabled"
+						control={control}
+						render={({ field }) => (
+							<Switch
+								id={`${formId}-rollout`}
+								checked={field.value}
+								onCheckedChange={(checked) => {
+									field.onChange(checked);
+									updateParent({
+										rolloutEnabled: checked,
+										rolloutPercentage: checked ? rolloutPercentage : null,
+									});
+								}}
+							/>
+						)}
+					/>
+				</Field>
+
+				{rolloutEnabled ? (
+					<FieldGroup>
+						<Field>
+							<div className="flex items-center justify-between">
+								<FieldDescription>Доля аудитории</FieldDescription>
+								<Badge variant="outline" className="text-violet-400">
+									{rolloutPercentage}%
+								</Badge>
+							</div>
+							<Controller
+								name="rolloutPercentage"
+								control={control}
+								render={({ field }) => (
+									<Slider
+										min={0}
+										max={100}
+										step={5}
+										value={[field.value]}
+										onValueChange={(values) => {
+											const val = values[0] ?? 0;
+											field.onChange(val);
+											updateParent({ rolloutPercentage: val });
+										}}
+									/>
+								)}
+							/>
+							<FieldDescription>
+								{rolloutPercentage === 0
+									? "Раскатка выключена — никто не получит флаг"
+									: rolloutPercentage === 100
+										? "100% — все пользователи получат флаг"
+										: `≈${rolloutPercentage}% пользователей получат флаг`}
+							</FieldDescription>
+						</Field>
+					</FieldGroup>
+				) : null}
+			</FieldSet>
+
+			{/* Сегменты пользователей */}
+			<FieldSet>
+				<Field orientation="horizontal">
+					<FieldContent>
+						<div className="flex items-center gap-2">
+							<div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/10">
+								<Users className="h-4 w-4 text-sky-400" />
+							</div>
+							<div>
+								<FieldTitle>Сегменты пользователей</FieldTitle>
+								<FieldDescription>
+									vip, beta, employee и другие
+								</FieldDescription>
+							</div>
+						</div>
+					</FieldContent>
+					<div className="flex items-center gap-2">
+						<Controller
+							name="newSegment"
+							control={control}
+							render={({ field }) => (
+								<Input
+									{...field}
+									placeholder="Новый сегмент..."
+									className="h-8 w-36 text-xs"
+								/>
+							)}
 						/>
 						<Button
 							type="button"
 							size="sm"
 							variant="outline"
-							disabled={creatingSegment}
+							className="h-8"
+							disabled={formState.isSubmitting}
 							onClick={handleCreateSegment}
 						>
-							{creatingSegment ? (
-								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+							{formState.isSubmitting ? (
+								<Loader2 className="h-3.5 w-3.5 animate-spin" />
 							) : (
-								<Plus className="mr-2 h-4 w-4" />
+								<Plus className="h-3.5 w-3.5" />
 							)}
-							Создать новый сегмент
 						</Button>
 					</div>
-				</div>
-				<div className="grid gap-3 md:grid-cols-2">
-					<SegmentPicker
-						label="Включить для сегментов"
-						selected={env.segmentInclude}
-						available={availableSegments}
-						locked={env.segmentExclude}
-						onAdd={(segment) =>
-							onChange({
-								segmentInclude: addSegment(env.segmentInclude, segment),
-							})
-						}
-						onRemove={(segment) =>
-							onChange({
-								segmentInclude: env.segmentInclude.filter(
-									(item) => item !== segment,
-								),
-							})
-						}
-						helper="Пользователи из выбранных сегментов попадут под действие флага."
-					/>
-					<SegmentPicker
-						label="Исключить сегменты"
-						selected={env.segmentExclude}
-						available={availableSegments}
-						locked={env.segmentInclude}
-						onAdd={(segment) =>
-							onChange({
-								segmentExclude: addSegment(env.segmentExclude, segment),
-							})
-						}
-						onRemove={(segment) =>
-							onChange({
-								segmentExclude: env.segmentExclude.filter(
-									(item) => item !== segment,
-								),
-							})
-						}
-						helper="Эти сегменты будут исключены даже при процентной выкаты."
-					/>
-				</div>
-				{segmentError ? (
-					<p className="text-xs text-destructive">{segmentError}</p>
-				) : null}
-			</div>
+				</Field>
 
-		<div className="grid gap-3 md:grid-cols-2">
-			<PhoneTargetInput
-				id={phoneIncludeId}
-				label="Телефон (включить)"
-				value={env.phoneIncludeDraft}
-				mode={env.phoneIncludeMode}
-				onChange={(value) => onChange({ phoneIncludeDraft: value })}
-				onModeChange={(mode) => onChange({ phoneIncludeMode: mode })}
-			/>
-			<PhoneTargetInput
-				id={phoneExcludeId}
-				label="Телефон (исключить)"
-				value={env.phoneExcludeDraft}
-				mode={env.phoneExcludeMode}
-				onChange={(value) => onChange({ phoneExcludeDraft: value })}
-				onModeChange={(mode) => onChange({ phoneExcludeMode: mode })}
-			/>
-		</div>
+				<div className="grid gap-4 md:grid-cols-2">
+					<SegmentPicker
+						formId={formId}
+						label="Включить"
+						selected={segmentInclude}
+						available={availableSegments}
+						locked={segmentExclude}
+						onAdd={(segment) => handleAddSegment("include", segment)}
+						onRemove={(segment) => handleRemoveSegment("include", segment)}
+						helper="Whitelist — только эти получат флаг"
+						variant="include"
+					/>
+					<SegmentPicker
+						formId={formId}
+						label="Исключить"
+						selected={segmentExclude}
+						available={availableSegments}
+						locked={segmentInclude}
+						onAdd={(segment) => handleAddSegment("exclude", segment)}
+						onRemove={(segment) => handleRemoveSegment("exclude", segment)}
+						helper="Blacklist — никогда не получат"
+						variant="exclude"
+					/>
+				</div>
+			</FieldSet>
+
+			{/* Таргетинг по телефону */}
+			<FieldSet>
+				<Field>
+					<div className="flex items-center gap-2">
+						<div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10">
+							<Phone className="h-4 w-4 text-amber-400" />
+						</div>
+						<div>
+							<FieldTitle>Таргетинг по телефону</FieldTitle>
+							<FieldDescription>
+								Полный номер, последние цифры, код оператора
+							</FieldDescription>
+						</div>
+					</div>
+				</Field>
+
+				<div className="grid gap-4 md:grid-cols-2">
+					<PhoneTargetField
+						formId={formId}
+						label="Включить"
+						variant="include"
+						control={control}
+						valueName="phoneIncludeDraft"
+						modeName="phoneIncludeMode"
+						value={phoneIncludeDraft}
+						mode={phoneIncludeMode}
+						onValueChange={(val) => updateParent({ phoneIncludeDraft: val })}
+						onModeChange={(mode) => updateParent({ phoneIncludeMode: mode })}
+					/>
+					<PhoneTargetField
+						formId={formId}
+						label="Исключить"
+						variant="exclude"
+						control={control}
+						valueName="phoneExcludeDraft"
+						modeName="phoneExcludeMode"
+						value={phoneExcludeDraft}
+						mode={phoneExcludeMode}
+						onValueChange={(val) => updateParent({ phoneExcludeDraft: val })}
+						onModeChange={(mode) => updateParent({ phoneExcludeMode: mode })}
+					/>
+				</div>
+			</FieldSet>
+
+			{/* Таргетинг по дате рождения */}
+			<FieldSet>
+				<Field>
+					<div className="flex items-center gap-2">
+						<div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-500/10">
+							<Cake className="h-4 w-4 text-rose-400" />
+						</div>
+						<div>
+							<FieldTitle>Таргетинг по дате рождения</FieldTitle>
+							<FieldDescription>
+								Точная дата в формате ДД.ММ.ГГГГ
+							</FieldDescription>
+						</div>
+					</div>
+				</Field>
+
+				<div className="grid gap-4 md:grid-cols-2">
+					<BirthdateTargetField
+						formId={formId}
+						label="Включить"
+						variant="include"
+						control={control}
+						name="birthdateIncludeDraft"
+						value={birthdateIncludeDraft}
+						onChange={(val) => updateParent({ birthdateIncludeDraft: val })}
+					/>
+					<BirthdateTargetField
+						formId={formId}
+						label="Исключить"
+						variant="exclude"
+						control={control}
+						name="birthdateExcludeDraft"
+						value={birthdateExcludeDraft}
+						onChange={(val) => updateParent({ birthdateExcludeDraft: val })}
+					/>
+				</div>
+			</FieldSet>
 		</div>
 	);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Компонент выбора сегментов
+// ─────────────────────────────────────────────────────────────────────────────
+
 type SegmentPickerProps = {
+	formId: string;
 	label: string;
 	selected: string[];
 	available: string[];
@@ -221,9 +489,11 @@ type SegmentPickerProps = {
 	onAdd: (segment: string) => void;
 	onRemove: (segment: string) => void;
 	helper?: string;
+	variant?: "include" | "exclude";
 };
 
 function SegmentPicker({
+	formId,
 	label,
 	selected,
 	available,
@@ -231,8 +501,12 @@ function SegmentPicker({
 	onAdd,
 	onRemove,
 	helper,
+	variant = "include",
 }: SegmentPickerProps) {
-	const [selection, setSelection] = useState("");
+	const { control, setValue } = useForm<{ selection: string }>({
+		defaultValues: { selection: "" },
+	});
+
 	const options = useMemo(
 		() =>
 			available.filter(
@@ -241,140 +515,297 @@ function SegmentPicker({
 		[available, locked, selected],
 	);
 
+	const isInclude = variant === "include";
+	const badgeVariant = isInclude ? "default" : "destructive";
+
 	return (
-		<div className="space-y-2">
-			<Label className="text-xs font-medium">{label}</Label>
-			<div className="flex min-h-[40px] flex-wrap gap-2 rounded-md border bg-muted/30 p-2">
-				{selected.length === 0 ? (
-					<span className="text-[11px] text-muted-foreground">
-						Нет выбранных сегментов
-					</span>
-				) : (
-					selected.map((segment) => (
-						<span
-							key={segment}
-							className="inline-flex items-center gap-1 rounded-full border border-muted-foreground/40 px-2 py-1 text-[11px] font-medium"
+		<FieldGroup className="rounded-lg border bg-muted/30 p-3">
+			<Field>
+				<FieldTitle
+					className={isInclude ? "text-emerald-400" : "text-rose-400"}
+				>
+					{label}
+					{selected.length > 0 && (
+						<Badge variant="secondary" className="ml-2">
+							{selected.length}
+						</Badge>
+					)}
+				</FieldTitle>
+				<div className="flex min-h-[42px] flex-wrap gap-1.5 rounded-md border bg-background p-2">
+					{selected.length === 0 ? (
+						<span className="text-xs text-muted-foreground">Не выбрано</span>
+					) : (
+						selected.map((segment) => (
+							<Badge key={segment} variant={badgeVariant} className="gap-1">
+								{segment}
+								<button
+									type="button"
+									className="ml-0.5 rounded hover:bg-background/20"
+									onClick={() => onRemove(segment)}
+								>
+									<X className="h-3 w-3" />
+								</button>
+							</Badge>
+						))
+					)}
+				</div>
+			</Field>
+			<Field>
+				<Controller
+					name="selection"
+					control={control}
+					render={({ field }) => (
+						<Select
+							value={field.value}
+							onValueChange={(value) => {
+								setValue("selection", "");
+								onAdd(value);
+							}}
+							disabled={options.length === 0}
 						>
-							{segment}
-							<button
-								type="button"
-								className="text-muted-foreground hover:text-destructive"
-								onClick={() => onRemove(segment)}
+							<SelectTrigger
+								id={`${formId}-segment-${variant}`}
+								className="h-8 text-xs"
 							>
-								<X className="h-3 w-3" />
-							</button>
-						</span>
-					))
-				)}
-			</div>
-			<Select
-				value={selection}
-				onValueChange={(value) => {
-					setSelection("");
-					onAdd(value);
-				}}
-				disabled={options.length === 0}
-			>
-				<SelectTrigger className="w-full text-sm">
-					<SelectValue placeholder="Выберите сегмент" />
-				</SelectTrigger>
-				<SelectContent>
-					{options.map((segment) => (
-						<SelectItem key={segment} value={segment}>
-							{segment}
-						</SelectItem>
-					))}
-				</SelectContent>
-			</Select>
-			{helper ? (
-				<p className="text-[11px] text-muted-foreground">{helper}</p>
-			) : null}
-		</div>
+								<SelectValue placeholder="Добавить сегмент..." />
+							</SelectTrigger>
+							<SelectContent>
+								{options.map((segment) => (
+									<SelectItem key={segment} value={segment} className="text-xs">
+										{segment}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					)}
+				/>
+				{helper ? <FieldDescription>{helper}</FieldDescription> : null}
+			</Field>
+		</FieldGroup>
 	);
 }
 
-type PhoneTargetInputProps = {
-	id: string;
+// ─────────────────────────────────────────────────────────────────────────────
+// Компонент ввода телефона
+// ─────────────────────────────────────────────────────────────────────────────
+
+type PhoneTargetFieldProps = {
+	formId: string;
 	label: string;
+	variant: "include" | "exclude";
+	control: ReturnType<typeof useForm<EnvFormValues>>["control"];
+	valueName: "phoneIncludeDraft" | "phoneExcludeDraft";
+	modeName: "phoneIncludeMode" | "phoneExcludeMode";
 	value: string;
 	mode: PhoneMatchMode;
-	onChange: (value: string) => void;
+	onValueChange: (value: string) => void;
 	onModeChange: (mode: PhoneMatchMode) => void;
 };
 
-function PhoneTargetInput({
-	id,
+function PhoneTargetField({
+	formId,
 	label,
+	variant,
+	control,
+	valueName,
+	modeName,
 	value,
 	mode,
-	onChange,
+	onValueChange,
 	onModeChange,
-}: PhoneTargetInputProps) {
+}: PhoneTargetFieldProps) {
 	const derivedSegments = useMemo(
 		() => derivePhoneSegments(value, mode),
 		[value, mode],
 	);
-
 	const modes: PhoneMatchMode[] = ["auto", "full", "last2", "last4", "prefix3"];
+	const isInclude = variant === "include";
 
 	return (
-		<div className="space-y-3 rounded-lg border bg-muted/20 p-3">
-			<div className="flex items-center gap-2">
-				<Phone className="h-4 w-4 text-muted-foreground" />
-				<Label htmlFor={id} className="text-xs font-medium">
+		<FieldGroup className="rounded-lg border bg-muted/30 p-3">
+			<Field orientation="horizontal">
+				<FieldTitle
+					className={isInclude ? "text-emerald-400" : "text-rose-400"}
+				>
 					{label}
-				</Label>
-			</div>
+				</FieldTitle>
+				<Controller
+					name={modeName}
+					control={control}
+					render={({ field }) => (
+						<Select
+							value={field.value}
+							onValueChange={(v) => {
+								field.onChange(v);
+								onModeChange(v as PhoneMatchMode);
+							}}
+						>
+							<SelectTrigger className="h-7 w-[140px] text-[11px]">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								{modes.map((m) => (
+									<SelectItem key={m} value={m} className="text-xs">
+										{phoneMatchModeLabels[m]}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					)}
+				/>
+			</Field>
 
-			<Input
-				id={id}
-				value={value}
-				onChange={(event) => onChange(event.target.value)}
-				placeholder="+7 999 123 45 67"
-				className="text-sm"
-			/>
-
-			<div className="space-y-1.5">
-				<Label className="text-[11px] text-muted-foreground">
-					Режим совпадения
-				</Label>
-				<Select value={mode} onValueChange={(v) => onModeChange(v as PhoneMatchMode)}>
-					<SelectTrigger className="h-8 text-xs">
-						<SelectValue />
-					</SelectTrigger>
-					<SelectContent>
-						{modes.map((m) => (
-							<SelectItem key={m} value={m} className="text-xs">
-								{phoneMatchModeLabels[m]}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-			</div>
+			<Field>
+				<Controller
+					name={valueName}
+					control={control}
+					render={({ field }) => (
+						<Input
+							{...field}
+							id={`${formId}-${valueName}`}
+							ref={withMask("+7 (999) 999-99-99", {
+								placeholder: "_",
+								showMaskOnHover: true,
+								showMaskOnFocus: true,
+							})}
+							onChange={(e) => {
+								field.onChange(e);
+								onValueChange(e.target.value);
+							}}
+							placeholder="+7 (___) ___-__-__"
+							className="h-9 text-sm font-mono"
+						/>
+					)}
+				/>
+			</Field>
 
 			{derivedSegments.length > 0 ? (
-				<div className="space-y-1.5">
-					<Label className="flex items-center gap-1 text-[11px] text-muted-foreground">
+				<Field>
+					<FieldDescription className="flex items-center gap-1">
 						<Hash className="h-3 w-3" />
-						Создаваемые сегменты
-					</Label>
-					<div className="flex flex-wrap gap-1.5">
+						Сегменты:
+					</FieldDescription>
+					<div className="flex flex-wrap gap-1">
 						{derivedSegments.map((segment) => (
-							<span
+							<Badge
 								key={segment}
-								className="inline-flex items-center gap-1 rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-[11px] font-medium text-primary"
+								variant="outline"
+								className={
+									isInclude
+										? "border-emerald-500/20 text-emerald-300"
+										: "border-rose-500/20 text-rose-300"
+								}
 								title={segment}
 							>
 								{getSegmentDescription(segment)}
-							</span>
+							</Badge>
 						))}
 					</div>
-				</div>
+				</Field>
 			) : value ? (
-				<p className="text-[11px] text-muted-foreground">
-					Введите больше цифр для создания сегментов
-				</p>
+				<FieldDescription>Введите больше цифр...</FieldDescription>
 			) : null}
-		</div>
+		</FieldGroup>
+	);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Компонент ввода даты рождения
+// ─────────────────────────────────────────────────────────────────────────────
+
+type BirthdateTargetFieldProps = {
+	formId: string;
+	label: string;
+	variant: "include" | "exclude";
+	control: ReturnType<typeof useForm<EnvFormValues>>["control"];
+	name: "birthdateIncludeDraft" | "birthdateExcludeDraft";
+	value: string;
+	onChange: (value: string) => void;
+};
+
+function BirthdateTargetField({
+	formId,
+	label,
+	variant,
+	control,
+	name,
+	value,
+	onChange,
+}: BirthdateTargetFieldProps) {
+	// Конвертируем ISO в RU формат для отображения
+	const displayValue = useMemo(() => formatToRuDate(value), [value]);
+
+	const derivedSegments = useMemo(
+		() => deriveBirthdateSegments(value),
+		[value],
+	);
+	const isInclude = variant === "include";
+
+	return (
+		<FieldGroup className="rounded-lg border bg-muted/30 p-3">
+			<Field>
+				<FieldTitle
+					className={isInclude ? "text-emerald-400" : "text-rose-400"}
+				>
+					{label}
+				</FieldTitle>
+				<Controller
+					name={name}
+					control={control}
+					render={({ field }) => (
+						<Input
+							id={`${formId}-${name}`}
+							value={displayValue}
+							ref={withMask("99.99.9999", {
+								placeholder: "_",
+								showMaskOnHover: true,
+								showMaskOnFocus: true,
+							})}
+							onChange={(e) => {
+								const ruDate = e.target.value;
+								// Конвертируем в ISO формат для хранения
+								const isoDate = parseRuDate(ruDate);
+								if (isoDate) {
+									field.onChange(isoDate);
+									onChange(isoDate);
+								} else {
+									// Храним как есть если не удалось распарсить
+									field.onChange(ruDate);
+									onChange(ruDate);
+								}
+							}}
+							placeholder="ДД.ММ.ГГГГ"
+							className="h-9 text-sm font-mono"
+						/>
+					)}
+				/>
+				<FieldDescription>Формат: ДД.ММ.ГГГГ</FieldDescription>
+			</Field>
+
+			{derivedSegments.length > 0 ? (
+				<Field>
+					<FieldDescription className="flex items-center gap-1">
+						<Hash className="h-3 w-3" />
+						Сегмент:
+					</FieldDescription>
+					<div className="flex flex-wrap gap-1">
+						{derivedSegments.map((segment) => (
+							<Badge
+								key={segment}
+								variant="outline"
+								className={
+									isInclude
+										? "border-emerald-500/20 text-emerald-300"
+										: "border-rose-500/20 text-rose-300"
+								}
+								title={segment}
+							>
+								{getSegmentDescription(segment)}
+							</Badge>
+						))}
+					</div>
+				</Field>
+			) : null}
+		</FieldGroup>
 	);
 }

@@ -10,11 +10,6 @@ export type FeatureEnvironment = z.infer<typeof FeatureEnvironmentSchema>;
 export const FeatureFlagTypeSchema = z.enum(["BOOLEAN", "MULTIVARIANT"]);
 export type FeatureFlagType = z.infer<typeof FeatureFlagTypeSchema>;
 
-const UserTargetSchema = z.object({
-	userId: z.string().min(1),
-	include: z.boolean(),
-});
-
 const SegmentTargetSchema = z.object({
 	segment: z.string().min(1),
 	include: z.boolean(),
@@ -38,9 +33,6 @@ export const FeatureFlagEnvironmentSchema = z.object({
 	environment: FeatureEnvironmentSchema,
 	enabled: z.boolean(),
 	rolloutPercentage: z.number().min(0).max(100).nullable(),
-	forceEnabled: z.boolean().nullable(),
-	forceDisabled: z.boolean().nullable(),
-	userTargets: z.array(UserTargetSchema).optional().default([]),
 	segmentTargets: z.array(SegmentTargetSchema).optional().default([]),
 });
 export type FeatureFlagEnvironment = z.infer<
@@ -68,13 +60,8 @@ export const CreateFlagPayloadSchema = z.object({
 				environment: true,
 				enabled: true,
 				rolloutPercentage: true,
-				forceEnabled: true,
-				forceDisabled: true,
 			}),
 		)
-		.optional(),
-	userTargets: z
-		.array(UserTargetSchema.extend({ environment: FeatureEnvironmentSchema }))
 		.optional(),
 	segmentTargets: z
 		.array(
@@ -94,13 +81,8 @@ export const UpdateFlagPayloadSchema = z.object({
 				environment: FeatureEnvironmentSchema,
 				enabled: z.boolean().optional(),
 				rolloutPercentage: z.number().min(0).max(100).nullable().optional(),
-				forceEnabled: z.boolean().nullable().optional(),
-				forceDisabled: z.boolean().nullable().optional(),
 			}),
 		)
-		.optional(),
-	userTargets: z
-		.array(UserTargetSchema.extend({ environment: FeatureEnvironmentSchema }))
 		.optional(),
 	segmentTargets: z
 		.array(

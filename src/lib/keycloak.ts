@@ -4,9 +4,11 @@ import Keycloak from "keycloak-js";
 // Конфигурация Keycloak
 // ─────────────────────────────────────────────────────────────────────────────
 
-const KEYCLOAK_URL = import.meta.env.VITE_KEYCLOAK_URL || "http://localhost:8080";
+const KEYCLOAK_URL =
+	import.meta.env.VITE_KEYCLOAK_URL || "http://localhost:8080";
 const KEYCLOAK_REALM = import.meta.env.VITE_KEYCLOAK_REALM || "FeatureFlags";
-const KEYCLOAK_CLIENT_ID = import.meta.env.VITE_KEYCLOAK_CLIENT_ID || "feature-flags-api";
+const KEYCLOAK_CLIENT_ID =
+	import.meta.env.VITE_KEYCLOAK_CLIENT_ID || "feature-flags-api";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Keycloak Instance
@@ -50,7 +52,9 @@ const notifyListeners = () => {
 	}
 };
 
-export const subscribeToAuth = (listener: (state: AuthState) => void): (() => void) => {
+export const subscribeToAuth = (
+	listener: (state: AuthState) => void,
+): (() => void) => {
 	listeners.add(listener);
 	listener(authState);
 	return () => {
@@ -65,27 +69,30 @@ export const getAuthState = () => authState;
 // ─────────────────────────────────────────────────────────────────────────────
 
 const updateAuthState = () => {
-	const tokenParsed = keycloak.tokenParsed as {
-		sub?: string;
-		preferred_username?: string;
-		email?: string;
-		name?: string;
-		realm_access?: { roles?: string[] };
-	} | undefined;
+	const tokenParsed = keycloak.tokenParsed as
+		| {
+				sub?: string;
+				preferred_username?: string;
+				email?: string;
+				name?: string;
+				realm_access?: { roles?: string[] };
+		  }
+		| undefined;
 
 	authState = {
 		initialized: true,
 		authenticated: keycloak.authenticated ?? false,
 		token: keycloak.token ?? null,
-		user: keycloak.authenticated && tokenParsed
-			? {
-					id: tokenParsed.sub ?? "",
-					username: tokenParsed.preferred_username ?? "",
-					email: tokenParsed.email,
-					name: tokenParsed.name,
-					roles: tokenParsed.realm_access?.roles ?? [],
-				}
-			: null,
+		user:
+			keycloak.authenticated && tokenParsed
+				? {
+						id: tokenParsed.sub ?? "",
+						username: tokenParsed.preferred_username ?? "",
+						email: tokenParsed.email,
+						name: tokenParsed.name,
+						roles: tokenParsed.realm_access?.roles ?? [],
+					}
+				: null,
 	};
 	notifyListeners();
 };
@@ -102,14 +109,17 @@ export const initKeycloak = async (): Promise<boolean> => {
 
 		// Автоматическое обновление токена
 		keycloak.onTokenExpired = () => {
-			keycloak.updateToken(30).then((refreshed) => {
-				if (refreshed) {
-					updateAuthState();
-				}
-			}).catch(() => {
-				console.error("Не удалось обновить токен");
-				logout();
-			});
+			keycloak
+				.updateToken(30)
+				.then((refreshed) => {
+					if (refreshed) {
+						updateAuthState();
+					}
+				})
+				.catch(() => {
+					console.error("Не удалось обновить токен");
+					logout();
+				});
 		};
 
 		keycloak.onAuthRefreshSuccess = updateAuthState;
@@ -133,7 +143,8 @@ export const initKeycloak = async (): Promise<boolean> => {
 
 export const login = () => keycloak.login();
 
-export const logout = () => keycloak.logout({ redirectUri: window.location.origin });
+export const logout = () =>
+	keycloak.logout({ redirectUri: window.location.origin });
 
 export const getToken = async (): Promise<string | null> => {
 	if (!keycloak.authenticated) return null;
@@ -158,4 +169,3 @@ export const hasRole = (role: string): boolean => {
 export const isFeatureFlagsAdmin = (): boolean => {
 	return hasRole("feature-flags-admin");
 };
-

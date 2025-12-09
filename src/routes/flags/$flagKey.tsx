@@ -3,6 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, Loader2, Settings2 } from "lucide-react";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { toast } from "sonner";
 import { z } from "zod";
 import { EnvironmentCard } from "@/components/EnvironmentCard";
 import { Button } from "@/components/ui/button";
@@ -75,7 +76,6 @@ function FlagSettingsPage() {
 	const [loading, setLoading] = useState(true);
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
-	const [info, setInfo] = useState<string | null>(null);
 
 	const {
 		register,
@@ -202,7 +202,6 @@ function FlagSettingsPage() {
 			if (!flag) return;
 			setSaving(true);
 			setError(null);
-			setInfo(null);
 
 			const payload: UpdateFlagPayload = {
 				name: values.name.trim(),
@@ -214,10 +213,7 @@ function FlagSettingsPage() {
 					rolloutPercentage: env.rolloutEnabled
 						? (env.rolloutPercentage ?? 0)
 						: null,
-					forceEnabled: null,
-					forceDisabled: null,
 				})),
-				userTargets: [],
 				segmentTargets: collectSegmentTargets(envState),
 			};
 
@@ -229,16 +225,21 @@ function FlagSettingsPage() {
 				setAvailableSegments((prev) =>
 					mergeSegments(prev, collectSegmentsFromState(builtState)),
 				);
-				setInfo("Изменения сохранены");
+				toast.success("Изменения сохранены", {
+					description: `Флаг "${updated.name}" успешно обновлён`,
+				});
 				reset({
 					name: updated.name,
 					description: updated.description ?? "",
 					type: updated.type,
 				});
 			} catch (err) {
-				setError(
-					err instanceof Error ? err.message : "Не удалось сохранить изменения",
-				);
+				const message =
+					err instanceof Error ? err.message : "Не удалось сохранить изменения";
+				toast.error("Ошибка сохранения", {
+					description: message,
+				});
+				setError(message);
 			} finally {
 				setSaving(false);
 			}
@@ -286,11 +287,6 @@ function FlagSettingsPage() {
 				{error ? (
 					<div className="flex items-center gap-3 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-destructive">
 						<span>{error}</span>
-					</div>
-				) : null}
-				{info ? (
-					<div className="flex items-center gap-3 rounded-lg border border-emerald-500/50 bg-emerald-500/10 px-4 py-3 text-emerald-100">
-						<span>{info}</span>
 					</div>
 				) : null}
 
@@ -460,9 +456,6 @@ function buildEnvState(flag: FeatureFlag): EnvState[] {
 			enabled: found?.enabled ?? false,
 			rolloutPercentage: found?.rolloutPercentage ?? null,
 			rolloutEnabled,
-			forceEnabled: found?.forceEnabled ?? null,
-			forceDisabled: found?.forceDisabled ?? null,
-			userTargets: found?.userTargets ?? [],
 			segmentTargets: found?.segmentTargets ?? [],
 			segmentInclude: includeSegments,
 			segmentExclude: excludeSegments,
@@ -470,6 +463,8 @@ function buildEnvState(flag: FeatureFlag): EnvState[] {
 			phoneExcludeDraft: "",
 			phoneIncludeMode: "auto",
 			phoneExcludeMode: "auto",
+			birthdateIncludeDraft: "",
+			birthdateExcludeDraft: "",
 		};
 	});
 }

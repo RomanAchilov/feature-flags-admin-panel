@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { initKeycloak, isFeatureFlagsAdmin } from "../lib/keycloak";
 
@@ -26,15 +26,22 @@ function AccessDenied() {
 		<div className="min-h-screen flex items-center justify-center bg-zinc-950">
 			<div className="text-center max-w-md p-8 bg-zinc-900 rounded-lg border border-zinc-800">
 				<div className="text-red-500 text-5xl mb-4">🚫</div>
-				<h1 className="text-xl font-bold text-zinc-100 mb-2">Доступ запрещён</h1>
+				<h1 className="text-xl font-bold text-zinc-100 mb-2">
+					Доступ запрещён
+				</h1>
 				<p className="text-zinc-400 mb-4">
-					У вас нет роли <code className="text-emerald-400">feature-flags-admin</code> для доступа к админ-панели.
+					У вас нет роли{" "}
+					<code className="text-emerald-400">feature-flags-admin</code> для
+					доступа к админ-панели.
 				</p>
 				{user && (
 					<p className="text-zinc-500 text-sm mb-4">
 						Вы вошли как: <span className="text-zinc-300">{user.username}</span>
 						<br />
-						Ваши роли: <span className="text-zinc-300">{user.roles.join(", ") || "нет"}</span>
+						Ваши роли:{" "}
+						<span className="text-zinc-300">
+							{user.roles.join(", ") || "нет"}
+						</span>
 					</p>
 				)}
 				<button
@@ -80,4 +87,3 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
 	return <>{children}</>;
 }
-

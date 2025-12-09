@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Loader2, Plus } from "lucide-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { toast } from "sonner";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,8 +32,6 @@ const defaultEnvironments = environmentsOrder.map((env) => ({
 	environment: env,
 	enabled: false,
 	rolloutPercentage: null,
-	forceEnabled: null,
-	forceDisabled: null,
 }));
 
 export const Route = createFileRoute("/create")({
@@ -72,9 +71,15 @@ function CreateFlagPage() {
 				environments: defaultEnvironments,
 			};
 			await createFlag(payload);
+			toast.success("Флаг создан", {
+				description: `Флаг "${value.name}" успешно создан`,
+			});
 			navigate({ to: "/" });
 		} catch (err) {
-			setError(err instanceof Error ? err.message : "Не удалось создать флаг");
+			const message =
+				err instanceof Error ? err.message : "Не удалось создать флаг";
+			toast.error("Ошибка создания", { description: message });
+			setError(message);
 		} finally {
 			setCreating(false);
 		}

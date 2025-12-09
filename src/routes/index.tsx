@@ -1,13 +1,13 @@
 ﻿import { createFileRoute, Link } from "@tanstack/react-router";
 import {
 	AlertTriangle,
-	CheckCircle2,
 	Loader2,
 	RefreshCw,
 	Settings2,
 	Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -40,7 +40,6 @@ export function FeatureFlagsDashboard() {
 	const [flags, setFlags] = useState<FeatureFlag[]>([]);
 	const [listLoading, setListLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
-	const [info, setInfo] = useState<string | null>(null);
 	const [search, setSearch] = useState("");
 	const [togglingKey, setTogglingKey] = useState<string | null>(null);
 	const [deletingKey, setDeletingKey] = useState<string | null>(null);
@@ -96,15 +95,17 @@ export function FeatureFlagsDashboard() {
 		async (flagKey: string, env: FeatureEnvironment, enabled: boolean) => {
 			setTogglingKey(`${flagKey}-${env}`);
 			setError(null);
-			setInfo(null);
 			try {
 				await toggleFlagEnvironment(flagKey, env, enabled);
-				setInfo("Состояние обновлено");
+				toast.success("Состояние обновлено", {
+					description: `${env}: ${enabled ? "включено" : "выключено"}`,
+				});
 				await refreshFlags();
 			} catch (err) {
-				setError(
-					err instanceof Error ? err.message : "Не удалось обновить окружение",
-				);
+				const message =
+					err instanceof Error ? err.message : "Не удалось обновить окружение";
+				toast.error("Ошибка", { description: message });
+				setError(message);
 			} finally {
 				setTogglingKey(null);
 			}
@@ -133,15 +134,17 @@ export function FeatureFlagsDashboard() {
 		async (key: string) => {
 			setDeletingKey(key);
 			setError(null);
-			setInfo(null);
 			try {
 				await deleteFlag(key);
-				setInfo(`Флаг ${key} удалён`);
+				toast.success("Флаг удалён", {
+					description: `Флаг "${key}" успешно удалён`,
+				});
 				await refreshFlags();
 			} catch (err) {
-				setError(
-					err instanceof Error ? err.message : "Не удалось удалить флаг",
-				);
+				const message =
+					err instanceof Error ? err.message : "Не удалось удалить флаг";
+				toast.error("Ошибка удаления", { description: message });
+				setError(message);
 			} finally {
 				setDeletingKey(null);
 			}
@@ -229,12 +232,6 @@ export function FeatureFlagsDashboard() {
 							<span>{error}</span>
 						</div>
 					) : null}
-					{info ? (
-						<div className="flex items-center gap-3 rounded-lg border border-emerald-500/50 bg-emerald-500/10 px-4 py-3 text-emerald-100">
-							<CheckCircle2 className="h-5 w-5" />
-							<span>{info}</span>
-						</div>
-					) : null}
 
 					<section className="rounded-2xl border bg-card p-6 shadow-sm space-y-6">
 						<div className="space-y-2">
@@ -311,9 +308,6 @@ export function FeatureFlagsDashboard() {
 															environment: env,
 															enabled: false,
 															rolloutPercentage: null,
-															forceEnabled: null,
-															forceDisabled: null,
-															userTargets: [],
 															segmentTargets: [],
 														} as FeatureFlagEnvironment);
 

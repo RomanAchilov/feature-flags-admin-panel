@@ -25,6 +25,8 @@ export type EnvState = FeatureFlagEnvironment & {
 	phoneExcludeDraft: string;
 	phoneIncludeMode: PhoneMatchMode;
 	phoneExcludeMode: PhoneMatchMode;
+	birthdateIncludeDraft: string;
+	birthdateExcludeDraft: string;
 };
 
 export const derivePhoneSegments = (
@@ -65,6 +67,52 @@ export const derivePhoneSegments = (
 	return Array.from(new Set(parts));
 };
 
+/**
+ * Парсит дату в формате ДД.ММ.ГГГГ и возвращает ISO строку YYYY-MM-DD
+ */
+export const parseRuDate = (input: string): string | null => {
+	if (!input) return null;
+
+	// Формат ДД.ММ.ГГГГ
+	const match = input.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+	if (match) {
+		const [, day, month, year] = match;
+		const isoDate = `${year}-${month}-${day}`;
+		const parsed = new Date(isoDate);
+		if (!Number.isNaN(parsed.getTime())) {
+			return isoDate;
+		}
+	}
+
+	// Fallback: пробуем стандартный формат ISO (YYYY-MM-DD)
+	const parsed = new Date(input);
+	if (!Number.isNaN(parsed.getTime())) {
+		return parsed.toISOString().slice(0, 10);
+	}
+
+	return null;
+};
+
+/**
+ * Форматирует ISO дату (YYYY-MM-DD) в русский формат ДД.ММ.ГГГГ
+ */
+export const formatToRuDate = (isoDate: string): string => {
+	if (!isoDate) return "";
+	const match = isoDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+	if (match) {
+		const [, year, month, day] = match;
+		return `${day}.${month}.${year}`;
+	}
+	return isoDate;
+};
+
+export const deriveBirthdateSegments = (input: string): string[] => {
+	const isoDate = parseRuDate(input);
+	if (!isoDate) return [];
+
+	return [`birthdate:${isoDate}`];
+};
+
 export const getSegmentDescription = (segment: string): string => {
 	if (segment.startsWith("phone:")) {
 		return `Полный номер: ${segment.replace("phone:", "")}`;
@@ -77,6 +125,10 @@ export const getSegmentDescription = (segment: string): string => {
 	}
 	if (segment.startsWith("phone-prefix3:")) {
 		return `Код: ${segment.replace("phone-prefix3:", "")}***`;
+	}
+	if (segment.startsWith("birthdate:")) {
+		const date = segment.replace("birthdate:", "");
+		return `Дата рождения: ${date}`;
 	}
 	return segment;
 };
@@ -102,10 +154,12 @@ export const collectSegmentTargets = (envs: EnvState[]) => {
 		const includeSegments = new Set([
 			...normalize(env.segmentInclude),
 			...derivePhoneSegments(env.phoneIncludeDraft, env.phoneIncludeMode),
+			...deriveBirthdateSegments(env.birthdateIncludeDraft),
 		]);
 		const excludeSegments = new Set([
 			...normalize(env.segmentExclude),
 			...derivePhoneSegments(env.phoneExcludeDraft, env.phoneExcludeMode),
+			...deriveBirthdateSegments(env.birthdateExcludeDraft),
 		]);
 
 		for (const segment of includeSegments) {
