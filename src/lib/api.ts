@@ -110,17 +110,36 @@ export const UpdateFlagPayloadSchema = z.object({
 });
 export type UpdateFlagPayload = z.infer<typeof UpdateFlagPayloadSchema>;
 
+import { getToken } from "./keycloak";
+
 const ApiBaseSchema = z.string().min(1).catch("/api");
 const API_BASE = ApiBaseSchema.parse(
 	(typeof import.meta !== "undefined" && import.meta.env?.VITE_API_BASE) ||
 		"/api",
 );
 
+// Режим аутентификации: "keycloak" или "dev"
+const AUTH_MODE = import.meta.env.VITE_AUTH_MODE || "dev";
+
 const withBase = (path: string) => `${API_BASE.replace(/\/$/, "")}${path}`;
 
-const defaultHeaders = {
-	"Content-Type": "application/json",
-	"x-user-id": "admin-panel",
+const getHeaders = async (): Promise<HeadersInit> => {
+	const headers: HeadersInit = {
+		"Content-Type": "application/json",
+	};
+
+	if (AUTH_MODE === "keycloak") {
+		const token = await getToken();
+		if (token) {
+			headers.Authorization = `Bearer ${token}`;
+		}
+	} else {
+		// Dev mode: использовать заголовки x-user-*
+		headers["x-user-id"] = "admin-panel";
+		headers["x-user-roles"] = "feature-flags-admin";
+	}
+
+	return headers;
 };
 
 const FlagsResponseSchema = z.object({ data: z.array(FeatureFlagSchema) });
@@ -168,7 +187,7 @@ async function handleResponse<T>(
 
 export async function fetchFlags(): Promise<FeatureFlag[]> {
 	const res = await fetch(withBase("/flags"), {
-		headers: defaultHeaders,
+		headers: await getHeaders(),
 	});
 	const body = await handleResponse(res, FlagsResponseSchema);
 	return body.data ?? [];
@@ -176,7 +195,7 @@ export async function fetchFlags(): Promise<FeatureFlag[]> {
 
 export async function fetchFlag(key: string): Promise<FeatureFlag> {
 	const res = await fetch(withBase(`/flags/${encodeURIComponent(key)}`), {
-		headers: defaultHeaders,
+		headers: await getHeaders(),
 	});
 	const body = await handleResponse(res, FlagResponseSchema);
 	return body.data;
@@ -188,7 +207,7 @@ export async function createFlag(
 	const parsedPayload = CreateFlagPayloadSchema.parse(payload);
 	const res = await fetch(withBase("/flags"), {
 		method: "POST",
-		headers: defaultHeaders,
+		headers: await getHeaders(),
 		body: JSON.stringify(parsedPayload),
 	});
 
@@ -203,7 +222,7 @@ export async function updateFlag(
 	const parsedPayload = UpdateFlagPayloadSchema.parse(payload);
 	const res = await fetch(withBase(`/flags/${encodeURIComponent(key)}`), {
 		method: "PATCH",
-		headers: defaultHeaders,
+		headers: await getHeaders(),
 		body: JSON.stringify(parsedPayload),
 	});
 
@@ -213,7 +232,7 @@ export async function updateFlag(
 
 export async function fetchSegments(): Promise<string[]> {
 	const res = await fetch(withBase("/segments"), {
-		headers: defaultHeaders,
+		headers: await getHeaders(),
 	});
 	const body = await handleResponse(res, SegmentsResponseSchema);
 	return body.data.map((segment) => segment.name);
@@ -224,7 +243,7 @@ export async function createSegment(name: string): Promise<string> {
 	const normalized = parsed.name.trim().toLowerCase();
 	const res = await fetch(withBase("/segments"), {
 		method: "POST",
-		headers: defaultHeaders,
+		headers: await getHeaders(),
 		body: JSON.stringify({ name: normalized }),
 	});
 	const body = await handleResponse(res, SegmentResponseSchema);
@@ -250,7 +269,7 @@ export async function toggleFlagEnvironment(
 		),
 		{
 			method: "PATCH",
-			headers: defaultHeaders,
+			headers: await getHeaders(),
 			body: JSON.stringify({ enabled }),
 		},
 	);
@@ -265,7 +284,7 @@ export async function toggleFlagEnvironment(
 export async function deleteFlag(key: string): Promise<void> {
 	const res = await fetch(withBase(`/flags/${encodeURIComponent(key)}`), {
 		method: "DELETE",
-		headers: defaultHeaders,
+		headers: await getHeaders(),
 	});
 
 	await handleResponse(res);
