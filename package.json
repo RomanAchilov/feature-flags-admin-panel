@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "cross-env VITE_AUTH_MODE=dev vite",
+    "dev:keycloak": "cross-env VITE_AUTH_MODE=keycloak vite",
     "build": "vite build && tsc",
     "serve": "vite preview",
     "test": "vitest run",
@@ -53,6 +54,7 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.0.4",
+    "cross-env": "^10.1.0",
     "jsdom": "^27.0.0",
     "typescript": "^5.7.2",
     "vite": "^7.1.7",
