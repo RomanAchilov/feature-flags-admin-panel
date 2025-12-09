@@ -30,7 +30,7 @@ export default function Header() {
 						</Link>
 					</Button>
 					<a
-						href="http://localhost:3000/docs"
+						href="http://localhost:4000/docs"
 						target="_blank"
 						rel="noreferrer"
 						className="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 transition hover:border-primary hover:text-primary"
