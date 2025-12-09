@@ -1,8 +1,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Loader2, Settings2 } from "lucide-react";
+import { ArrowLeft, Loader2, Settings2 } from "lucide-react";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { EnvironmentCard } from "@/components/EnvironmentCard";
 import { Button } from "@/components/ui/button";
@@ -81,6 +81,7 @@ function FlagSettingsPage() {
 		register,
 		handleSubmit,
 		reset,
+		control,
 		formState: { errors },
 	} = useForm<FlagSettingsForm>({
 		resolver: zodResolver(flagSettingsSchema),
@@ -272,7 +273,10 @@ function FlagSettingsPage() {
 
 				<div className="flex flex-wrap gap-3">
 					<Button variant="outline" size="sm" asChild>
-						<Link to="/">&lt;- Назад</Link>
+						<Link to="/">
+							<ArrowLeft className="h-4 w-4" />
+							Назад
+						</Link>
 					</Button>
 					<Button variant="ghost" size="sm" disabled>
 						ID {flag?.id ?? "-"}
@@ -321,15 +325,25 @@ function FlagSettingsPage() {
 							</div>
 							<div className="space-y-2">
 								<Label htmlFor={typeId}>Тип</Label>
-								<select
-									id={typeId}
-									{...register("type")}
-									className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-									disabled={!canEdit}
-								>
-									<option value="BOOLEAN">Boolean</option>
-									<option value="MULTIVARIANT">A/B/N</option>
-								</select>
+								<Controller
+									name="type"
+									control={control}
+									render={({ field }) => (
+										<Select
+											value={field.value}
+											onValueChange={field.onChange}
+											disabled={!canEdit}
+										>
+											<SelectTrigger id={typeId} className="w-full">
+												<SelectValue placeholder="Выберите тип" />
+											</SelectTrigger>
+											<SelectContent>
+												<SelectItem value="BOOLEAN">Boolean</SelectItem>
+												<SelectItem value="MULTIVARIANT">A/B/N</SelectItem>
+											</SelectContent>
+										</Select>
+									)}
+								/>
 							</div>
 						</div>
 
@@ -454,6 +468,8 @@ function buildEnvState(flag: FeatureFlag): EnvState[] {
 			segmentExclude: excludeSegments,
 			phoneIncludeDraft: "",
 			phoneExcludeDraft: "",
+			phoneIncludeMode: "auto",
+			phoneExcludeMode: "auto",
 		};
 	});
 }

@@ -19,6 +19,8 @@ const baseEnv: EnvState = {
 	segmentExclude: ["beta"],
 	phoneIncludeDraft: "+7 999 111 2233",
 	phoneExcludeDraft: "+7 999 111 0000",
+	phoneIncludeMode: "auto",
+	phoneExcludeMode: "auto",
 };
 
 describe("flag-utils", () => {
@@ -30,6 +32,8 @@ describe("flag-utils", () => {
 				segmentExclude: [...baseEnv.segmentExclude, "old_customer", "beta"],
 				phoneIncludeDraft: "+7 999 111 2233",
 				phoneExcludeDraft: "+7 901 000 9900",
+				phoneIncludeMode: "auto",
+				phoneExcludeMode: "auto",
 			},
 		]);
 		expect(targets).toEqual([

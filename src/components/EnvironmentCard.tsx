@@ -1,4 +1,4 @@
-import { Loader2, Plus, X } from "lucide-react";
+import { Hash, Loader2, Phone, Plus, X } from "lucide-react";
 import { useId, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,9 @@ import {
 	addSegment,
 	derivePhoneSegments,
 	type EnvState,
+	getSegmentDescription,
+	type PhoneMatchMode,
+	phoneMatchModeLabels,
 } from "@/lib/flag-utils";
 
 type EnvironmentCardProps = {
@@ -188,22 +191,24 @@ export function EnvironmentCard({
 				) : null}
 			</div>
 
-			<div className="grid gap-3 md:grid-cols-2">
-				<PhoneTargetInput
-					id={phoneIncludeId}
-					label="Телефон (включить)"
-					value={env.phoneIncludeDraft}
-					onChange={(value) => onChange({ phoneIncludeDraft: value })}
-					helper="Введите полный номер, только последние 2 цифры, либо первые 3 цифры после 7."
-				/>
-				<PhoneTargetInput
-					id={phoneExcludeId}
-					label="Телефон (исключить)"
-					value={env.phoneExcludeDraft}
-					onChange={(value) => onChange({ phoneExcludeDraft: value })}
-					helper="Совпадение по номеру, последним двум цифрам или префиксу отключит флаг."
-				/>
-			</div>
+		<div className="grid gap-3 md:grid-cols-2">
+			<PhoneTargetInput
+				id={phoneIncludeId}
+				label="Телефон (включить)"
+				value={env.phoneIncludeDraft}
+				mode={env.phoneIncludeMode}
+				onChange={(value) => onChange({ phoneIncludeDraft: value })}
+				onModeChange={(mode) => onChange({ phoneIncludeMode: mode })}
+			/>
+			<PhoneTargetInput
+				id={phoneExcludeId}
+				label="Телефон (исключить)"
+				value={env.phoneExcludeDraft}
+				mode={env.phoneExcludeMode}
+				onChange={(value) => onChange({ phoneExcludeDraft: value })}
+				onModeChange={(mode) => onChange({ phoneExcludeMode: mode })}
+			/>
+		</div>
 		</div>
 	);
 }
@@ -292,43 +297,83 @@ type PhoneTargetInputProps = {
 	id: string;
 	label: string;
 	value: string;
+	mode: PhoneMatchMode;
 	onChange: (value: string) => void;
-	helper: string;
+	onModeChange: (mode: PhoneMatchMode) => void;
 };
 
 function PhoneTargetInput({
 	id,
 	label,
 	value,
+	mode,
 	onChange,
-	helper,
+	onModeChange,
 }: PhoneTargetInputProps) {
-	const derivedSegments = useMemo(() => derivePhoneSegments(value), [value]);
+	const derivedSegments = useMemo(
+		() => derivePhoneSegments(value, mode),
+		[value, mode],
+	);
+
+	const modes: PhoneMatchMode[] = ["auto", "full", "last2", "last4", "prefix3"];
 
 	return (
-		<div className="space-y-2">
-			<Label htmlFor={id} className="text-xs font-medium">
-				{label}
-			</Label>
+		<div className="space-y-3 rounded-lg border bg-muted/20 p-3">
+			<div className="flex items-center gap-2">
+				<Phone className="h-4 w-4 text-muted-foreground" />
+				<Label htmlFor={id} className="text-xs font-medium">
+					{label}
+				</Label>
+			</div>
+
 			<Input
 				id={id}
 				value={value}
 				onChange={(event) => onChange(event.target.value)}
-				placeholder="+7 999 123 45 67 или 67"
+				placeholder="+7 999 123 45 67"
 				className="text-sm"
 			/>
-			<p className="text-[11px] text-muted-foreground">{helper}</p>
+
+			<div className="space-y-1.5">
+				<Label className="text-[11px] text-muted-foreground">
+					Режим совпадения
+				</Label>
+				<Select value={mode} onValueChange={(v) => onModeChange(v as PhoneMatchMode)}>
+					<SelectTrigger className="h-8 text-xs">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						{modes.map((m) => (
+							<SelectItem key={m} value={m} className="text-xs">
+								{phoneMatchModeLabels[m]}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+			</div>
+
 			{derivedSegments.length > 0 ? (
-				<div className="flex flex-wrap gap-1 text-[11px] text-muted-foreground">
-					{derivedSegments.map((segment) => (
-						<span
-							key={segment}
-							className="rounded-md bg-muted px-2 py-1 font-medium"
-						>
-							{segment}
-						</span>
-					))}
+				<div className="space-y-1.5">
+					<Label className="flex items-center gap-1 text-[11px] text-muted-foreground">
+						<Hash className="h-3 w-3" />
+						Создаваемые сегменты
+					</Label>
+					<div className="flex flex-wrap gap-1.5">
+						{derivedSegments.map((segment) => (
+							<span
+								key={segment}
+								className="inline-flex items-center gap-1 rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-[11px] font-medium text-primary"
+								title={segment}
+							>
+								{getSegmentDescription(segment)}
+							</span>
+						))}
+					</div>
 				</div>
+			) : value ? (
+				<p className="text-[11px] text-muted-foreground">
+					Введите больше цифр для создания сегментов
+				</p>
 			) : null}
 		</div>
 	);

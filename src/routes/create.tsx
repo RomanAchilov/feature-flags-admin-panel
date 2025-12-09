@@ -2,11 +2,18 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Loader2, Plus } from "lucide-react";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { type CreateFlagPayload, createFlag } from "@/lib/api";
 import { environmentsOrder } from "@/lib/flag-utils";
@@ -40,6 +47,7 @@ function CreateFlagPage() {
 	const {
 		register,
 		handleSubmit,
+		control,
 		formState: { errors },
 	} = useForm<CreateFlagForm>({
 		resolver: zodResolver(createFlagFormSchema),
@@ -118,13 +126,21 @@ function CreateFlagPage() {
 				</div>
 				<div className="space-y-2">
 					<Label>Тип</Label>
-					<select
-						className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-						{...register("type")}
-					>
-						<option value="BOOLEAN">BOOLEAN</option>
-						<option value="MULTIVARIANT">MULTIVARIANT</option>
-					</select>
+					<Controller
+						name="type"
+						control={control}
+						render={({ field }) => (
+							<Select value={field.value} onValueChange={field.onChange}>
+								<SelectTrigger className="w-full">
+									<SelectValue placeholder="Выберите тип" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="BOOLEAN">Boolean</SelectItem>
+									<SelectItem value="MULTIVARIANT">A/B/N</SelectItem>
+								</SelectContent>
+							</Select>
+						)}
+					/>
 				</div>
 				<div className="flex justify-between gap-3 pt-4">
 					<Button variant="ghost" onClick={() => navigate({ to: "/" })}>
