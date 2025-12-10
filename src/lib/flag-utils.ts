@@ -6,14 +6,17 @@ export const environmentsOrder: FeatureEnvironment[] = [
 	"production",
 ];
 
-export type PhoneMatchMode = "full" | "last2" | "last4" | "prefix3" | "auto";
+export type PhoneMatchMode = "full" | "last2" | "prefix3";
 
 export const phoneMatchModeLabels: Record<PhoneMatchMode, string> = {
-	auto: "Авто (все режимы)",
 	full: "Полный номер",
 	last2: "Последние 2 цифры",
-	last4: "Последние 4 цифры",
 	prefix3: "Код оператора (3 цифры)",
+};
+
+export type PhoneTarget = {
+	phone: string;
+	mode: PhoneMatchMode;
 };
 
 export type EnvState = FeatureFlagEnvironment & {
@@ -21,17 +24,15 @@ export type EnvState = FeatureFlagEnvironment & {
 	rolloutEnabled: boolean;
 	segmentInclude: string[];
 	segmentExclude: string[];
-	phoneIncludeDraft: string;
-	phoneExcludeDraft: string;
-	phoneIncludeMode: PhoneMatchMode;
-	phoneExcludeMode: PhoneMatchMode;
-	birthdateIncludeDraft: string;
-	birthdateExcludeDraft: string;
+	phoneIncludeDraft: PhoneTarget[];
+	phoneExcludeDraft: PhoneTarget[];
+	birthdateIncludeDraft: string[];
+	birthdateExcludeDraft: string[];
 };
 
 export const derivePhoneSegments = (
 	input: string,
-	mode: PhoneMatchMode = "auto",
+	mode: PhoneMatchMode = "full",
 ) => {
 	const digits = input.replace(/\D/g, "");
 	if (!digits) return [];
@@ -39,17 +40,17 @@ export const derivePhoneSegments = (
 	const parts: string[] = [];
 
 	// Полный номер
-	if (mode === "auto" || mode === "full") {
+	if (mode === "full") {
 		parts.push(`phone:${digits}`);
 	}
 
 	// Последние 2 цифры
-	if ((mode === "auto" || mode === "last2") && digits.length >= 2) {
+	if (mode === "last2" && digits.length >= 2) {
 		parts.push(`phone-last2:${digits.slice(-2)}`);
 	}
 
 	// Код оператора (первые 3 цифры после кода страны)
-	if ((mode === "auto" || mode === "prefix3") && digits.length >= 3) {
+	if (mode === "prefix3" && digits.length >= 3) {
 		const prefix =
 			digits.startsWith("7") && digits.length >= 4
 				? digits.slice(1, 4)
@@ -57,11 +58,6 @@ export const derivePhoneSegments = (
 		if (prefix.length === 3) {
 			parts.push(`phone-prefix3:${prefix}`);
 		}
-	}
-
-	// Последние 4 цифры
-	if ((mode === "auto" || mode === "last4") && digits.length >= 4) {
-		parts.push(`phone-last4:${digits.slice(-4)}`);
 	}
 
 	return Array.from(new Set(parts));
@@ -151,15 +147,28 @@ export const collectSegmentTargets = (envs: EnvState[]) => {
 		);
 
 	for (const env of envs) {
+		const phoneIncludeSegments = env.phoneIncludeDraft.flatMap((target) =>
+			derivePhoneSegments(target.phone, target.mode),
+		);
+		const phoneExcludeSegments = env.phoneExcludeDraft.flatMap((target) =>
+			derivePhoneSegments(target.phone, target.mode),
+		);
+		const birthdateIncludeSegments = env.birthdateIncludeDraft.flatMap(
+			(birthdate) => deriveBirthdateSegments(birthdate),
+		);
+		const birthdateExcludeSegments = env.birthdateExcludeDraft.flatMap(
+			(birthdate) => deriveBirthdateSegments(birthdate),
+		);
+
 		const includeSegments = new Set([
 			...normalize(env.segmentInclude),
-			...derivePhoneSegments(env.phoneIncludeDraft, env.phoneIncludeMode),
-			...deriveBirthdateSegments(env.birthdateIncludeDraft),
+			...phoneIncludeSegments,
+			...birthdateIncludeSegments,
 		]);
 		const excludeSegments = new Set([
 			...normalize(env.segmentExclude),
-			...derivePhoneSegments(env.phoneExcludeDraft, env.phoneExcludeMode),
-			...deriveBirthdateSegments(env.birthdateExcludeDraft),
+			...phoneExcludeSegments,
+			...birthdateExcludeSegments,
 		]);
 
 		for (const segment of includeSegments) {

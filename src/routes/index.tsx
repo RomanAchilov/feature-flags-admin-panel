@@ -46,7 +46,9 @@ export const Route = createFileRoute("/")({
 			return {
 				flags: [],
 				loaderError:
-					err instanceof Error ? err.message : "Не удалось загрузить список флагов",
+					err instanceof Error
+						? err.message
+						: "Не удалось загрузить список флагов",
 			};
 		}
 	},

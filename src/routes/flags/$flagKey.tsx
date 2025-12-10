@@ -110,7 +110,10 @@ type FlagSettingsContentProps = {
 	initialSegments: string[];
 };
 
-function FlagSettingsContent({ flag, initialSegments }: FlagSettingsContentProps) {
+function FlagSettingsContent({
+	flag,
+	initialSegments,
+}: FlagSettingsContentProps) {
 	const [envState, setEnvState] = useState<EnvState[]>(() =>
 		buildEnvState(flag),
 	);
@@ -320,8 +323,8 @@ function FlagSettingsContent({ flag, initialSegments }: FlagSettingsContentProps
 							<div>
 								<h2 className="text-lg font-semibold">Окружения</h2>
 								<p className="text-xs text-muted-foreground">
-									Переключайте окружения и настраивайте правила таргетинга
-									для каждого из них.
+									Переключайте окружения и настраивайте правила таргетинга для
+									каждого из них.
 								</p>
 							</div>
 							<div className="flex items-center gap-2">
@@ -413,12 +416,10 @@ function buildEnvState(flag: FeatureFlag): EnvState[] {
 			segmentTargets: found?.segmentTargets ?? [],
 			segmentInclude: includeSegments,
 			segmentExclude: excludeSegments,
-			phoneIncludeDraft: "",
-			phoneExcludeDraft: "",
-			phoneIncludeMode: "auto",
-			phoneExcludeMode: "auto",
-			birthdateIncludeDraft: "",
-			birthdateExcludeDraft: "",
+			phoneIncludeDraft: [],
+			phoneExcludeDraft: [],
+			birthdateIncludeDraft: [],
+			birthdateExcludeDraft: [],
 		};
 	});
 }

@@ -1,7 +1,6 @@
 import {
 	AlertTriangle,
 	Cake,
-	Hash,
 	Loader2,
 	Percent,
 	Phone,
@@ -35,12 +34,10 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import {
 	addSegment,
-	deriveBirthdateSegments,
-	derivePhoneSegments,
 	type EnvState,
 	formatToRuDate,
-	getSegmentDescription,
 	type PhoneMatchMode,
+	type PhoneTarget,
 	parseRuDate,
 	phoneMatchModeLabels,
 } from "@/lib/flag-utils";
@@ -58,13 +55,17 @@ type EnvFormValues = {
 	rolloutPercentage: number;
 	segmentInclude: string[];
 	segmentExclude: string[];
-	phoneIncludeDraft: string;
-	phoneExcludeDraft: string;
-	phoneIncludeMode: PhoneMatchMode;
-	phoneExcludeMode: PhoneMatchMode;
-	birthdateIncludeDraft: string;
-	birthdateExcludeDraft: string;
+	phoneIncludeDraft: PhoneTarget[];
+	phoneExcludeDraft: PhoneTarget[];
+	birthdateIncludeDraft: string[];
+	birthdateExcludeDraft: string[];
 	newSegment: string;
+	phoneIncludeDraftInput: string;
+	phoneIncludeDraftMode: PhoneMatchMode;
+	phoneExcludeDraftInput: string;
+	phoneExcludeDraftMode: PhoneMatchMode;
+	birthdateIncludeDraftInput: string;
+	birthdateExcludeDraftInput: string;
 };
 
 export function EnvironmentCard({
@@ -83,13 +84,57 @@ export function EnvironmentCard({
 				rolloutPercentage: env.rolloutPercentage ?? 0,
 				segmentInclude: env.segmentInclude,
 				segmentExclude: env.segmentExclude,
-				phoneIncludeDraft: env.phoneIncludeDraft,
-				phoneExcludeDraft: env.phoneExcludeDraft,
-				phoneIncludeMode: env.phoneIncludeMode,
-				phoneExcludeMode: env.phoneExcludeMode,
-				birthdateIncludeDraft: env.birthdateIncludeDraft,
-				birthdateExcludeDraft: env.birthdateExcludeDraft,
+				phoneIncludeDraft: Array.isArray(env.phoneIncludeDraft)
+					? env.phoneIncludeDraft.length > 0 &&
+						typeof env.phoneIncludeDraft[0] === "object" &&
+						env.phoneIncludeDraft[0] !== null &&
+						"phone" in env.phoneIncludeDraft[0] &&
+						"mode" in env.phoneIncludeDraft[0]
+						? (env.phoneIncludeDraft as PhoneTarget[])
+						: env.phoneIncludeDraft.length > 0 &&
+								typeof env.phoneIncludeDraft[0] === "string"
+							? (env.phoneIncludeDraft as unknown as string[]).map((phone) => ({
+									phone,
+									mode:
+										(env as { phoneIncludeMode?: PhoneMatchMode })
+											.phoneIncludeMode ?? "full",
+								}))
+							: []
+					: [],
+				phoneExcludeDraft: Array.isArray(env.phoneExcludeDraft)
+					? env.phoneExcludeDraft.length > 0 &&
+						typeof env.phoneExcludeDraft[0] === "object" &&
+						env.phoneExcludeDraft[0] !== null &&
+						"phone" in env.phoneExcludeDraft[0] &&
+						"mode" in env.phoneExcludeDraft[0]
+						? (env.phoneExcludeDraft as PhoneTarget[])
+						: env.phoneExcludeDraft.length > 0 &&
+								typeof env.phoneExcludeDraft[0] === "string"
+							? (env.phoneExcludeDraft as unknown as string[]).map((phone) => ({
+									phone,
+									mode:
+										(env as { phoneExcludeMode?: PhoneMatchMode })
+											.phoneExcludeMode ?? "full",
+								}))
+							: []
+					: [],
+				birthdateIncludeDraft: Array.isArray(env.birthdateIncludeDraft)
+					? env.birthdateIncludeDraft
+					: env.birthdateIncludeDraft
+						? [env.birthdateIncludeDraft]
+						: [],
+				birthdateExcludeDraft: Array.isArray(env.birthdateExcludeDraft)
+					? env.birthdateExcludeDraft
+					: env.birthdateExcludeDraft
+						? [env.birthdateExcludeDraft]
+						: [],
 				newSegment: "",
+				phoneIncludeDraftInput: "",
+				phoneIncludeDraftMode: "full",
+				phoneExcludeDraftInput: "",
+				phoneExcludeDraftMode: "full",
+				birthdateIncludeDraftInput: "",
+				birthdateExcludeDraftInput: "",
 			},
 		});
 
@@ -100,12 +145,62 @@ export function EnvironmentCard({
 		setValue("rolloutPercentage", env.rolloutPercentage ?? 0);
 		setValue("segmentInclude", env.segmentInclude);
 		setValue("segmentExclude", env.segmentExclude);
-		setValue("phoneIncludeDraft", env.phoneIncludeDraft);
-		setValue("phoneExcludeDraft", env.phoneExcludeDraft);
-		setValue("phoneIncludeMode", env.phoneIncludeMode);
-		setValue("phoneExcludeMode", env.phoneExcludeMode);
-		setValue("birthdateIncludeDraft", env.birthdateIncludeDraft);
-		setValue("birthdateExcludeDraft", env.birthdateExcludeDraft);
+		setValue(
+			"phoneIncludeDraft",
+			Array.isArray(env.phoneIncludeDraft)
+				? env.phoneIncludeDraft.length > 0 &&
+					typeof env.phoneIncludeDraft[0] === "object" &&
+					env.phoneIncludeDraft[0] !== null &&
+					"phone" in env.phoneIncludeDraft[0] &&
+					"mode" in env.phoneIncludeDraft[0]
+					? (env.phoneIncludeDraft as PhoneTarget[])
+					: env.phoneIncludeDraft.length > 0 &&
+							typeof env.phoneIncludeDraft[0] === "string"
+						? (env.phoneIncludeDraft as unknown as string[]).map((phone) => ({
+								phone,
+								mode:
+									(env as { phoneIncludeMode?: PhoneMatchMode })
+										.phoneIncludeMode ?? "full",
+							}))
+						: []
+				: [],
+		);
+		setValue(
+			"phoneExcludeDraft",
+			Array.isArray(env.phoneExcludeDraft)
+				? env.phoneExcludeDraft.length > 0 &&
+					typeof env.phoneExcludeDraft[0] === "object" &&
+					env.phoneExcludeDraft[0] !== null &&
+					"phone" in env.phoneExcludeDraft[0] &&
+					"mode" in env.phoneExcludeDraft[0]
+					? (env.phoneExcludeDraft as PhoneTarget[])
+					: env.phoneExcludeDraft.length > 0 &&
+							typeof env.phoneExcludeDraft[0] === "string"
+						? (env.phoneExcludeDraft as unknown as string[]).map((phone) => ({
+								phone,
+								mode:
+									(env as { phoneExcludeMode?: PhoneMatchMode })
+										.phoneExcludeMode ?? "full",
+							}))
+						: []
+				: [],
+		);
+		setValue(
+			"birthdateIncludeDraft",
+			Array.isArray(env.birthdateIncludeDraft)
+				? env.birthdateIncludeDraft
+				: env.birthdateIncludeDraft
+					? [env.birthdateIncludeDraft]
+					: [],
+		);
+		setValue(
+			"birthdateExcludeDraft",
+			Array.isArray(env.birthdateExcludeDraft)
+				? env.birthdateExcludeDraft
+				: env.birthdateExcludeDraft
+					? [env.birthdateExcludeDraft]
+					: [],
+		);
 	}, [env, setValue]);
 
 	const enabled = watch("enabled");
@@ -115,8 +210,6 @@ export function EnvironmentCard({
 	const segmentExclude = watch("segmentExclude");
 	const phoneIncludeDraft = watch("phoneIncludeDraft");
 	const phoneExcludeDraft = watch("phoneExcludeDraft");
-	const phoneIncludeMode = watch("phoneIncludeMode");
-	const phoneExcludeMode = watch("phoneExcludeMode");
 	const birthdateIncludeDraft = watch("birthdateIncludeDraft");
 	const birthdateExcludeDraft = watch("birthdateExcludeDraft");
 
@@ -125,10 +218,10 @@ export function EnvironmentCard({
 		segmentInclude.length > 0 ||
 		segmentExclude.length > 0 ||
 		rolloutEnabled ||
-		phoneIncludeDraft ||
-		phoneExcludeDraft ||
-		birthdateIncludeDraft ||
-		birthdateExcludeDraft;
+		phoneIncludeDraft.length > 0 ||
+		phoneExcludeDraft.length > 0 ||
+		birthdateIncludeDraft.length > 0 ||
+		birthdateExcludeDraft.length > 0;
 
 	// Описание текущего состояния для пользователя
 	const statusDescription = useMemo(() => {
@@ -199,6 +292,16 @@ export function EnvironmentCard({
 			const updated = segmentExclude.filter((s) => s !== segment);
 			setValue("segmentExclude", updated);
 			updateParent({ segmentExclude: updated });
+		}
+	};
+
+	const handleClearAllSegments = (type: "include" | "exclude") => {
+		if (type === "include") {
+			setValue("segmentInclude", []);
+			updateParent({ segmentInclude: [] });
+		} else {
+			setValue("segmentExclude", []);
+			updateParent({ segmentExclude: [] });
 		}
 	};
 
@@ -374,6 +477,7 @@ export function EnvironmentCard({
 						locked={segmentExclude}
 						onAdd={(segment) => handleAddSegment("include", segment)}
 						onRemove={(segment) => handleRemoveSegment("include", segment)}
+						onClearAll={() => handleClearAllSegments("include")}
 						helper="Whitelist — только эти получат флаг"
 						variant="include"
 					/>
@@ -385,6 +489,7 @@ export function EnvironmentCard({
 						locked={segmentInclude}
 						onAdd={(segment) => handleAddSegment("exclude", segment)}
 						onRemove={(segment) => handleRemoveSegment("exclude", segment)}
+						onClearAll={() => handleClearAllSegments("exclude")}
 						helper="Blacklist — никогда не получат"
 						variant="exclude"
 					/>
@@ -413,24 +518,28 @@ export function EnvironmentCard({
 						label="Включить"
 						variant="include"
 						control={control}
+						setValue={setValue}
+						getValues={getValues}
+						watch={watch}
 						valueName="phoneIncludeDraft"
-						modeName="phoneIncludeMode"
-						value={phoneIncludeDraft}
-						mode={phoneIncludeMode}
-						onValueChange={(val) => updateParent({ phoneIncludeDraft: val })}
-						onModeChange={(mode) => updateParent({ phoneIncludeMode: mode })}
+						inputName="phoneIncludeDraftInput"
+						modeInputName="phoneIncludeDraftMode"
+						values={phoneIncludeDraft}
+						onValuesChange={(vals) => updateParent({ phoneIncludeDraft: vals })}
 					/>
 					<PhoneTargetField
 						formId={formId}
 						label="Исключить"
 						variant="exclude"
 						control={control}
+						setValue={setValue}
+						getValues={getValues}
+						watch={watch}
 						valueName="phoneExcludeDraft"
-						modeName="phoneExcludeMode"
-						value={phoneExcludeDraft}
-						mode={phoneExcludeMode}
-						onValueChange={(val) => updateParent({ phoneExcludeDraft: val })}
-						onModeChange={(mode) => updateParent({ phoneExcludeMode: mode })}
+						inputName="phoneExcludeDraftInput"
+						modeInputName="phoneExcludeDraftMode"
+						values={phoneExcludeDraft}
+						onValuesChange={(vals) => updateParent({ phoneExcludeDraft: vals })}
 					/>
 				</div>
 			</FieldSet>
@@ -457,18 +566,24 @@ export function EnvironmentCard({
 						label="Включить"
 						variant="include"
 						control={control}
+						setValue={setValue}
+						getValues={getValues}
 						name="birthdateIncludeDraft"
-						value={birthdateIncludeDraft}
-						onChange={(val) => updateParent({ birthdateIncludeDraft: val })}
+						inputName="birthdateIncludeDraftInput"
+						values={birthdateIncludeDraft}
+						onChange={(vals) => updateParent({ birthdateIncludeDraft: vals })}
 					/>
 					<BirthdateTargetField
 						formId={formId}
 						label="Исключить"
 						variant="exclude"
 						control={control}
+						setValue={setValue}
+						getValues={getValues}
 						name="birthdateExcludeDraft"
-						value={birthdateExcludeDraft}
-						onChange={(val) => updateParent({ birthdateExcludeDraft: val })}
+						inputName="birthdateExcludeDraftInput"
+						values={birthdateExcludeDraft}
+						onChange={(vals) => updateParent({ birthdateExcludeDraft: vals })}
 					/>
 				</div>
 			</FieldSet>
@@ -488,6 +603,7 @@ type SegmentPickerProps = {
 	locked?: string[];
 	onAdd: (segment: string) => void;
 	onRemove: (segment: string) => void;
+	onClearAll: () => void;
 	helper?: string;
 	variant?: "include" | "exclude";
 };
@@ -500,6 +616,7 @@ function SegmentPicker({
 	locked = [],
 	onAdd,
 	onRemove,
+	onClearAll,
 	helper,
 	variant = "include",
 }: SegmentPickerProps) {
@@ -521,16 +638,29 @@ function SegmentPicker({
 	return (
 		<FieldGroup className="rounded-lg border bg-muted/30 p-3">
 			<Field>
-				<FieldTitle
-					className={isInclude ? "text-emerald-400" : "text-rose-400"}
-				>
-					{label}
+				<div className="flex items-center justify-between">
+					<FieldTitle
+						className={isInclude ? "text-emerald-400" : "text-rose-400"}
+					>
+						{label}
+						{selected.length > 0 && (
+							<Badge variant="secondary" className="ml-2">
+								{selected.length}
+							</Badge>
+						)}
+					</FieldTitle>
 					{selected.length > 0 && (
-						<Badge variant="secondary" className="ml-2">
-							{selected.length}
-						</Badge>
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							className="h-7 text-xs text-muted-foreground hover:text-foreground"
+							onClick={onClearAll}
+						>
+							Очистить всё
+						</Button>
 					)}
-				</FieldTitle>
+				</div>
 				<div className="flex min-h-[42px] flex-wrap gap-1.5 rounded-md border bg-background p-2">
 					{selected.length === 0 ? (
 						<span className="text-xs text-muted-foreground">Не выбрано</span>
@@ -594,12 +724,14 @@ type PhoneTargetFieldProps = {
 	label: string;
 	variant: "include" | "exclude";
 	control: ReturnType<typeof useForm<EnvFormValues>>["control"];
+	setValue: ReturnType<typeof useForm<EnvFormValues>>["setValue"];
+	getValues: ReturnType<typeof useForm<EnvFormValues>>["getValues"];
+	watch: ReturnType<typeof useForm<EnvFormValues>>["watch"];
 	valueName: "phoneIncludeDraft" | "phoneExcludeDraft";
-	modeName: "phoneIncludeMode" | "phoneExcludeMode";
-	value: string;
-	mode: PhoneMatchMode;
-	onValueChange: (value: string) => void;
-	onModeChange: (mode: PhoneMatchMode) => void;
+	inputName: "phoneIncludeDraftInput" | "phoneExcludeDraftInput";
+	modeInputName: "phoneIncludeDraftMode" | "phoneExcludeDraftMode";
+	values: PhoneTarget[];
+	onValuesChange: (values: PhoneTarget[]) => void;
 };
 
 function PhoneTargetField({
@@ -607,104 +739,210 @@ function PhoneTargetField({
 	label,
 	variant,
 	control,
+	setValue,
+	getValues,
+	watch,
 	valueName,
-	modeName,
-	value,
-	mode,
-	onValueChange,
-	onModeChange,
+	inputName,
+	modeInputName,
+	values,
+	onValuesChange,
 }: PhoneTargetFieldProps) {
-	const derivedSegments = useMemo(
-		() => derivePhoneSegments(value, mode),
-		[value, mode],
-	);
-	const modes: PhoneMatchMode[] = ["auto", "full", "last2", "last4", "prefix3"];
+	const currentMode = watch(modeInputName) as PhoneMatchMode;
+
+	const modes: PhoneMatchMode[] = ["full", "last2", "prefix3"];
 	const isInclude = variant === "include";
+	const badgeVariant = isInclude ? "default" : "destructive";
+
+	const handleAdd = () => {
+		const inputValue = getValues(inputName).trim();
+		const mode = getValues(modeInputName) as PhoneMatchMode;
+		if (!inputValue) return;
+
+		const digits = inputValue.replace(/\D/g, "");
+		if (mode === "last2" && digits.length < 2) return;
+		if (mode === "prefix3" && digits.length < 3) return;
+		if (mode === "full" && digits.length < 11) return;
+
+		const newValues: PhoneTarget[] = [...values, { phone: inputValue, mode }];
+		setValue(valueName, newValues);
+		setValue(inputName, "");
+		onValuesChange(newValues);
+	};
+
+	const handleRemove = (index: number) => {
+		const newValues = values.filter((_, i) => i !== index);
+		setValue(valueName, newValues);
+		onValuesChange(newValues);
+	};
+
+	const handleClearAll = () => {
+		setValue(valueName, []);
+		onValuesChange([]);
+	};
+
+	const getInputMask = (mode: PhoneMatchMode) => {
+		switch (mode) {
+			case "full":
+				return "+7 (999) 999-99-99";
+			case "last2":
+				return "99";
+			case "prefix3":
+				return "999";
+			default:
+				return "+7 (999) 999-99-99";
+		}
+	};
+
+	const getInputPlaceholder = (mode: PhoneMatchMode) => {
+		switch (mode) {
+			case "full":
+				return "+7 (___) ___-__-__";
+			case "last2":
+				return "26";
+			case "prefix3":
+				return "999";
+			default:
+				return "+7 (___) ___-__-__";
+		}
+	};
+
+	const formatPhoneDisplay = (target: PhoneTarget) => {
+		const digits = target.phone.replace(/\D/g, "");
+		switch (target.mode) {
+			case "full":
+				if (digits.length >= 11) {
+					return `+7 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7, 9)}-${digits.slice(9, 11)}`;
+				}
+				return target.phone;
+			case "last2":
+				return digits.slice(-2) || target.phone;
+			case "prefix3":
+				return digits.slice(0, 3) || target.phone;
+			default:
+				return target.phone;
+		}
+	};
 
 	return (
 		<FieldGroup className="rounded-lg border bg-muted/30 p-3">
-			<Field orientation="horizontal">
-				<FieldTitle
-					className={isInclude ? "text-emerald-400" : "text-rose-400"}
-				>
-					{label}
-				</FieldTitle>
-				<Controller
-					name={modeName}
-					control={control}
-					render={({ field }) => (
-						<Select
-							value={field.value}
-							onValueChange={(v) => {
-								field.onChange(v);
-								onModeChange(v as PhoneMatchMode);
-							}}
+			<Field>
+				<div className="flex items-center justify-between">
+					<FieldTitle
+						className={isInclude ? "text-emerald-400" : "text-rose-400"}
+					>
+						{label}
+						{values.length > 0 && (
+							<Badge variant="secondary" className="ml-2">
+								{values.length}
+							</Badge>
+						)}
+					</FieldTitle>
+					{values.length > 0 && (
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							className="h-7 text-xs text-muted-foreground hover:text-foreground"
+							onClick={handleClearAll}
 						>
-							<SelectTrigger className="h-7 w-[140px] text-[11px]">
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								{modes.map((m) => (
-									<SelectItem key={m} value={m} className="text-xs">
-										{phoneMatchModeLabels[m]}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+							Очистить всё
+						</Button>
 					)}
-				/>
+				</div>
 			</Field>
 
 			<Field>
-				<Controller
-					name={valueName}
-					control={control}
-					render={({ field }) => (
-						<Input
-							{...field}
-							id={`${formId}-${valueName}`}
-							ref={withMask("+7 (999) 999-99-99", {
-								placeholder: "_",
-								showMaskOnHover: true,
-								showMaskOnFocus: true,
-							})}
-							onChange={(e) => {
-								field.onChange(e);
-								onValueChange(e.target.value);
-							}}
-							placeholder="+7 (___) ___-__-__"
-							className="h-9 text-sm font-mono"
-						/>
+				<div className="flex min-h-[42px] flex-wrap gap-1.5 rounded-md border bg-background p-2">
+					{values.length === 0 ? (
+						<span className="text-xs text-muted-foreground">Не выбрано</span>
+					) : (
+						values.map((target, index) => {
+							const displayValue = formatPhoneDisplay(target);
+							return (
+								<Badge
+									key={`${target.phone}-${target.mode}-${index}`}
+									variant={badgeVariant}
+									className="gap-1"
+								>
+									<span className="font-mono">{displayValue}</span>
+									<span className="text-[10px] opacity-70">
+										({phoneMatchModeLabels[target.mode]})
+									</span>
+									<button
+										type="button"
+										className="ml-0.5 rounded hover:bg-background/20"
+										onClick={() => handleRemove(index)}
+									>
+										<X className="h-3 w-3" />
+									</button>
+								</Badge>
+							);
+						})
 					)}
-				/>
+				</div>
 			</Field>
 
-			{derivedSegments.length > 0 ? (
-				<Field>
-					<FieldDescription className="flex items-center gap-1">
-						<Hash className="h-3 w-3" />
-						Сегменты:
-					</FieldDescription>
-					<div className="flex flex-wrap gap-1">
-						{derivedSegments.map((segment) => (
-							<Badge
-								key={segment}
-								variant="outline"
-								className={
-									isInclude
-										? "border-emerald-500/20 text-emerald-300"
-										: "border-rose-500/20 text-rose-300"
-								}
-								title={segment}
+			<Field>
+				<div className="flex gap-2">
+					<Controller
+						name={modeInputName}
+						control={control}
+						render={({ field }) => (
+							<Select
+								value={field.value}
+								onValueChange={(v) => {
+									field.onChange(v);
+									setValue(inputName, "");
+								}}
 							>
-								{getSegmentDescription(segment)}
-							</Badge>
-						))}
-					</div>
-				</Field>
-			) : value ? (
-				<FieldDescription>Введите больше цифр...</FieldDescription>
-			) : null}
+								<SelectTrigger className="h-9 w-[160px] text-xs">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{modes.map((m) => (
+										<SelectItem key={m} value={m} className="text-xs">
+											{phoneMatchModeLabels[m]}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						)}
+					/>
+					<Controller
+						name={inputName}
+						control={control}
+						render={({ field }) => (
+							<Input
+								{...field}
+								id={`${formId}-${inputName}`}
+								ref={withMask(getInputMask(currentMode), {
+									placeholder: "_",
+									showMaskOnHover: true,
+									showMaskOnFocus: true,
+								})}
+								placeholder={getInputPlaceholder(currentMode)}
+								className="h-9 flex-1 text-sm font-mono"
+								onKeyDown={(e) => {
+									if (e.key === "Enter") {
+										e.preventDefault();
+										handleAdd();
+									}
+								}}
+							/>
+						)}
+					/>
+					<Button
+						type="button"
+						size="sm"
+						variant="outline"
+						className="h-9"
+						onClick={handleAdd}
+					>
+						<Plus className="h-4 w-4" />
+					</Button>
+				</div>
+			</Field>
 		</FieldGroup>
 	);
 }
@@ -718,9 +956,12 @@ type BirthdateTargetFieldProps = {
 	label: string;
 	variant: "include" | "exclude";
 	control: ReturnType<typeof useForm<EnvFormValues>>["control"];
+	setValue: ReturnType<typeof useForm<EnvFormValues>>["setValue"];
+	getValues: ReturnType<typeof useForm<EnvFormValues>>["getValues"];
 	name: "birthdateIncludeDraft" | "birthdateExcludeDraft";
-	value: string;
-	onChange: (value: string) => void;
+	inputName: "birthdateIncludeDraftInput" | "birthdateExcludeDraftInput";
+	values: string[];
+	onChange: (values: string[]) => void;
 };
 
 function BirthdateTargetField({
@@ -728,84 +969,131 @@ function BirthdateTargetField({
 	label,
 	variant,
 	control,
+	setValue,
+	getValues,
 	name,
-	value,
+	inputName,
+	values,
 	onChange,
 }: BirthdateTargetFieldProps) {
-	// Конвертируем ISO в RU формат для отображения
-	const displayValue = useMemo(() => formatToRuDate(value), [value]);
-
-	const derivedSegments = useMemo(
-		() => deriveBirthdateSegments(value),
-		[value],
-	);
 	const isInclude = variant === "include";
+	const badgeVariant = isInclude ? "default" : "destructive";
+
+	const handleAdd = () => {
+		const inputValue = getValues(inputName).trim();
+		if (!inputValue) return;
+
+		const ruDate = inputValue;
+		const isoDate = parseRuDate(ruDate);
+		if (!isoDate) return;
+
+		const newValues = [...values, isoDate];
+		setValue(name, newValues);
+		setValue(inputName, "");
+		onChange(newValues);
+	};
+
+	const handleRemove = (index: number) => {
+		const newValues = values.filter((_, i) => i !== index);
+		setValue(name, newValues);
+		onChange(newValues);
+	};
+
+	const handleClearAll = () => {
+		setValue(name, []);
+		onChange([]);
+	};
 
 	return (
 		<FieldGroup className="rounded-lg border bg-muted/30 p-3">
 			<Field>
-				<FieldTitle
-					className={isInclude ? "text-emerald-400" : "text-rose-400"}
-				>
-					{label}
-				</FieldTitle>
-				<Controller
-					name={name}
-					control={control}
-					render={({ field }) => (
-						<Input
-							id={`${formId}-${name}`}
-							value={displayValue}
-							ref={withMask("99.99.9999", {
-								placeholder: "_",
-								showMaskOnHover: true,
-								showMaskOnFocus: true,
-							})}
-							onChange={(e) => {
-								const ruDate = e.target.value;
-								// Конвертируем в ISO формат для хранения
-								const isoDate = parseRuDate(ruDate);
-								if (isoDate) {
-									field.onChange(isoDate);
-									onChange(isoDate);
-								} else {
-									// Храним как есть если не удалось распарсить
-									field.onChange(ruDate);
-									onChange(ruDate);
-								}
-							}}
-							placeholder="ДД.ММ.ГГГГ"
-							className="h-9 text-sm font-mono"
-						/>
+				<div className="flex items-center justify-between">
+					<FieldTitle
+						className={isInclude ? "text-emerald-400" : "text-rose-400"}
+					>
+						{label}
+						{values.length > 0 && (
+							<Badge variant="secondary" className="ml-2">
+								{values.length}
+							</Badge>
+						)}
+					</FieldTitle>
+					{values.length > 0 && (
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							className="h-7 text-xs text-muted-foreground hover:text-foreground"
+							onClick={handleClearAll}
+						>
+							Очистить всё
+						</Button>
 					)}
-				/>
-				<FieldDescription>Формат: ДД.ММ.ГГГГ</FieldDescription>
+				</div>
 			</Field>
 
-			{derivedSegments.length > 0 ? (
-				<Field>
-					<FieldDescription className="flex items-center gap-1">
-						<Hash className="h-3 w-3" />
-						Сегмент:
-					</FieldDescription>
-					<div className="flex flex-wrap gap-1">
-						{derivedSegments.map((segment) => (
-							<Badge
-								key={segment}
-								variant="outline"
-								className={
-									isInclude
-										? "border-emerald-500/20 text-emerald-300"
-										: "border-rose-500/20 text-rose-300"
-								}
-								title={segment}
-							>
-								{getSegmentDescription(segment)}
-							</Badge>
-						))}
-					</div>
-				</Field>
-			) : null}
+			<Field>
+				<div className="flex min-h-[42px] flex-wrap gap-1.5 rounded-md border bg-background p-2">
+					{values.length === 0 ? (
+						<span className="text-xs text-muted-foreground">Не выбрано</span>
+					) : (
+						values.map((value) => {
+							const displayValue = formatToRuDate(value);
+							const index = values.indexOf(value);
+							return (
+								<Badge key={value} variant={badgeVariant} className="gap-1">
+									{displayValue}
+									<button
+										type="button"
+										className="ml-0.5 rounded hover:bg-background/20"
+										onClick={() => handleRemove(index)}
+									>
+										<X className="h-3 w-3" />
+									</button>
+								</Badge>
+							);
+						})
+					)}
+				</div>
+			</Field>
+
+			<Field>
+				<div className="flex gap-2">
+					<Controller
+						name={inputName}
+						control={control}
+						render={({ field }) => (
+							<Input
+								{...field}
+								id={`${formId}-${inputName}`}
+								ref={withMask("99.99.9999", {
+									placeholder: "_",
+									showMaskOnHover: true,
+									showMaskOnFocus: true,
+								})}
+								placeholder="ДД.ММ.ГГГГ"
+								className="h-9 flex-1 text-sm font-mono"
+								onKeyDown={(e) => {
+									if (e.key === "Enter") {
+										e.preventDefault();
+										handleAdd();
+									}
+								}}
+							/>
+						)}
+					/>
+					<Button
+						type="button"
+						size="sm"
+						variant="outline"
+						className="h-9"
+						onClick={handleAdd}
+					>
+						<Plus className="h-4 w-4" />
+					</Button>
+				</div>
+				<FieldDescription>Формат: ДД.ММ.ГГГГ</FieldDescription>
+			</Field>
 		</FieldGroup>
 	);
 }

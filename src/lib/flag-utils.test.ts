@@ -15,12 +15,10 @@ const baseEnv: EnvState = {
 	segmentTargets: [],
 	segmentInclude: ["employee"],
 	segmentExclude: ["beta"],
-	phoneIncludeDraft: "+7 999 111 2233",
-	phoneExcludeDraft: "+7 999 111 0000",
-	phoneIncludeMode: "auto",
-	phoneExcludeMode: "auto",
-	birthdateIncludeDraft: "",
-	birthdateExcludeDraft: "",
+	phoneIncludeDraft: [{ phone: "+7 999 111 2233", mode: "full" }],
+	phoneExcludeDraft: [{ phone: "+7 999 111 0000", mode: "full" }],
+	birthdateIncludeDraft: [],
+	birthdateExcludeDraft: [],
 };
 
 describe("flag-utils", () => {
@@ -30,10 +28,8 @@ describe("flag-utils", () => {
 				...baseEnv,
 				segmentInclude: [...baseEnv.segmentInclude, "VIP"],
 				segmentExclude: [...baseEnv.segmentExclude, "old_customer", "beta"],
-				phoneIncludeDraft: "+7 999 111 2233",
-				phoneExcludeDraft: "+7 901 000 9900",
-				phoneIncludeMode: "auto",
-				phoneExcludeMode: "auto",
+				phoneIncludeDraft: [{ phone: "+7 999 111 2233", mode: "full" }],
+				phoneExcludeDraft: [{ phone: "+7 901 000 9900", mode: "full" }],
 			},
 		]);
 		expect(targets).toEqual([
@@ -42,21 +38,6 @@ describe("flag-utils", () => {
 			{
 				environment: environmentsOrder[0],
 				segment: "phone:79991112233",
-				include: true,
-			},
-			{
-				environment: environmentsOrder[0],
-				segment: "phone-last2:33",
-				include: true,
-			},
-			{
-				environment: environmentsOrder[0],
-				segment: "phone-prefix3:999",
-				include: true,
-			},
-			{
-				environment: environmentsOrder[0],
-				segment: "phone-last4:2233",
 				include: true,
 			},
 			{ environment: environmentsOrder[0], segment: "beta", include: false },
@@ -68,21 +49,6 @@ describe("flag-utils", () => {
 			{
 				environment: environmentsOrder[0],
 				segment: "phone:79010009900",
-				include: false,
-			},
-			{
-				environment: environmentsOrder[0],
-				segment: "phone-last2:00",
-				include: false,
-			},
-			{
-				environment: environmentsOrder[0],
-				segment: "phone-prefix3:901",
-				include: false,
-			},
-			{
-				environment: environmentsOrder[0],
-				segment: "phone-last4:9900",
 				include: false,
 			},
 		]);
@@ -117,10 +83,10 @@ describe("flag-utils", () => {
 				...baseEnv,
 				segmentInclude: [],
 				segmentExclude: [],
-				phoneIncludeDraft: "",
-				phoneExcludeDraft: "",
-				birthdateIncludeDraft: "1990-05-15",
-				birthdateExcludeDraft: "2000-01-01",
+				phoneIncludeDraft: [],
+				phoneExcludeDraft: [],
+				birthdateIncludeDraft: ["1990-05-15"],
+				birthdateExcludeDraft: ["2000-01-01"],
 			},
 		]);
 		expect(targets).toEqual([
