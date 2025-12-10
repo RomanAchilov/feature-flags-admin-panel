@@ -1,4 +1,4 @@
-﻿import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import {
 	AlertTriangle,
 	Loader2,
@@ -6,7 +6,7 @@ import {
 	Settings2,
 	Trash2,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
 	AlertDialog,
@@ -32,14 +32,31 @@ import {
 import { environmentsOrder } from "@/lib/flag-utils";
 import { cn } from "@/lib/utils";
 
+type DashboardLoader = {
+	flags: FeatureFlag[];
+	loaderError: string | null;
+};
+
 export const Route = createFileRoute("/")({
+	loader: async (): Promise<DashboardLoader> => {
+		try {
+			const flags = await fetchFlags();
+			return { flags, loaderError: null };
+		} catch (err) {
+			return {
+				flags: [],
+				loaderError:
+					err instanceof Error ? err.message : "Не удалось загрузить список флагов",
+			};
+		}
+	},
 	component: () => <FeatureFlagsDashboard />,
 });
 
 export function FeatureFlagsDashboard() {
-	const [flags, setFlags] = useState<FeatureFlag[]>([]);
-	const [listLoading, setListLoading] = useState(true);
-	const [error, setError] = useState<string | null>(null);
+	const { flags, loaderError } = Route.useLoaderData();
+	const router = useRouter();
+	const [actionError, setActionError] = useState<string | null>(loaderError);
 	const [search, setSearch] = useState("");
 	const [togglingKey, setTogglingKey] = useState<string | null>(null);
 	const [deletingKey, setDeletingKey] = useState<string | null>(null);
@@ -54,27 +71,17 @@ export function FeatureFlagsDashboard() {
 		| null
 	>(null);
 	const [confirmationInput, setConfirmationInput] = useState("");
+	const [refreshing, setRefreshing] = useState(false);
 
 	const refreshFlags = useCallback(async () => {
-		setListLoading(true);
-		setError(null);
+		setRefreshing(true);
+		setActionError(null);
 		try {
-			const data = await fetchFlags();
-			setFlags(data);
-		} catch (err) {
-			setError(
-				err instanceof Error
-					? err.message
-					: "Не удалось загрузить список флагов",
-			);
+			await router.invalidate();
 		} finally {
-			setListLoading(false);
+			setRefreshing(false);
 		}
-	}, []);
-
-	useEffect(() => {
-		void refreshFlags();
-	}, [refreshFlags]);
+	}, [router]);
 
 	const filteredFlags = useMemo(() => {
 		const term = search.trim().toLowerCase();
@@ -94,7 +101,7 @@ export function FeatureFlagsDashboard() {
 	const toggleEnvironment = useCallback(
 		async (flagKey: string, env: FeatureEnvironment, enabled: boolean) => {
 			setTogglingKey(`${flagKey}-${env}`);
-			setError(null);
+			setActionError(null);
 			try {
 				await toggleFlagEnvironment(flagKey, env, enabled);
 				toast.success("Состояние обновлено", {
@@ -105,7 +112,7 @@ export function FeatureFlagsDashboard() {
 				const message =
 					err instanceof Error ? err.message : "Не удалось обновить окружение";
 				toast.error("Ошибка", { description: message });
-				setError(message);
+				setActionError(message);
 			} finally {
 				setTogglingKey(null);
 			}
@@ -133,7 +140,7 @@ export function FeatureFlagsDashboard() {
 	const performDelete = useCallback(
 		async (key: string) => {
 			setDeletingKey(key);
-			setError(null);
+			setActionError(null);
 			try {
 				await deleteFlag(key);
 				toast.success("Флаг удалён", {
@@ -144,7 +151,7 @@ export function FeatureFlagsDashboard() {
 				const message =
 					err instanceof Error ? err.message : "Не удалось удалить флаг";
 				toast.error("Ошибка удаления", { description: message });
-				setError(message);
+				setActionError(message);
 			} finally {
 				setDeletingKey(null);
 			}
@@ -214,9 +221,9 @@ export function FeatureFlagsDashboard() {
 								variant="outline"
 								size="sm"
 								onClick={() => void refreshFlags()}
-								disabled={listLoading}
+								disabled={refreshing}
 							>
-								{listLoading ? (
+								{refreshing ? (
 									<Loader2 className="h-4 w-4 animate-spin" />
 								) : (
 									<RefreshCw className="h-4 w-4" />
@@ -226,10 +233,10 @@ export function FeatureFlagsDashboard() {
 						</div>
 					</div>
 
-					{error ? (
+					{(loaderError ?? actionError) ? (
 						<div className="flex items-center gap-3 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-destructive">
 							<AlertTriangle className="h-5 w-5" />
-							<span>{error}</span>
+							<span>{loaderError ?? actionError}</span>
 						</div>
 					) : null}
 
@@ -249,12 +256,7 @@ export function FeatureFlagsDashboard() {
 						/>
 
 						<div className="space-y-4">
-							{listLoading ? (
-								<div className="flex items-center justify-center gap-2 rounded-lg border bg-muted/30 p-6 text-muted-foreground">
-									<Loader2 className="h-5 w-5 animate-spin" />
-									Загрузка...
-								</div>
-							) : filteredFlags.length === 0 ? (
+							{filteredFlags.length === 0 ? (
 								<div className="rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center text-muted-foreground">
 									Флаги не найдены. Попробуйте другой запрос.
 								</div>

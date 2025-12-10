@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, Loader2, Settings2 } from "lucide-react";
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { useCallback, useId, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -33,15 +33,48 @@ import {
 } from "@/lib/flag-utils";
 
 const flagSettingsSchema = z.object({
-	name: z.string().min(1, "Укажите имя флага"),
+	name: z.string().min(1, "Название обязательно"),
 	description: z.string().optional(),
 	type: FeatureFlagTypeSchema,
 });
 
 type FlagSettingsForm = z.infer<typeof flagSettingsSchema>;
 
+type FlagSettingsLoader = {
+	flag: FeatureFlag;
+	segments: string[];
+};
+
 export const Route = createFileRoute("/flags/$flagKey")({
+	loader: async ({ params }): Promise<FlagSettingsLoader> => {
+		const flagKey = params.flagKey;
+		if (!flagKey) {
+			throw new Error("Ключ флага не указан");
+		}
+		const [flag, segments] = await Promise.all([
+			fetchFlag(flagKey),
+			fetchSegments(),
+		]);
+		return { flag, segments };
+	},
 	component: () => <FlagSettingsPage />,
+	errorComponent: ({ error }) => (
+		<div className="min-h-screen bg-background text-foreground">
+			<div className="mx-auto max-w-4xl space-y-4 px-6 py-12">
+				<div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-destructive">
+					{error instanceof Error
+						? error.message
+						: "Не удалось загрузить данные флага"}
+				</div>
+				<Button asChild variant="outline" size="sm">
+					<Link to="/">
+						<ArrowLeft className="mr-2 h-4 w-4" />
+						Назад
+					</Link>
+				</Button>
+			</div>
+		</div>
+	),
 });
 
 function mergeSegments(current: string[], incoming: string[]) {
@@ -61,21 +94,33 @@ function collectSegmentsFromState(envs: EnvState[]) {
 	);
 }
 
-function FlagSettingsPage() {
-	const params = Route.useParams();
-	const flagKey = params.flagKey;
+export function FlagSettingsPage() {
+	const loaderData = Route.useLoaderData();
+	return (
+		<FlagSettingsContent
+			key={loaderData.flag.key}
+			flag={loaderData.flag}
+			initialSegments={loaderData.segments}
+		/>
+	);
+}
 
-	const [flag, setFlag] = useState<FeatureFlag | null>(null);
-	const [envState, setEnvState] = useState<EnvState[]>([]);
+type FlagSettingsContentProps = {
+	flag: FeatureFlag;
+	initialSegments: string[];
+};
+
+function FlagSettingsContent({ flag, initialSegments }: FlagSettingsContentProps) {
+	const [envState, setEnvState] = useState<EnvState[]>(() =>
+		buildEnvState(flag),
+	);
 	const [activeEnvironment, setActiveEnvironment] = useState<
 		EnvState["environment"] | null
-	>(null);
-	const [availableSegments, setAvailableSegments] = useState<string[]>([]);
-	const [segmentsLoading, setSegmentsLoading] = useState(false);
-	const [segmentsError, setSegmentsError] = useState<string | null>(null);
-	const [loading, setLoading] = useState(true);
+	>(() => buildEnvState(flag)[0]?.environment ?? environmentsOrder[0]);
+	const [segments, setSegments] = useState<string[]>(() => initialSegments);
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const [segmentsError, setSegmentsError] = useState<string | null>(null);
 
 	const {
 		register,
@@ -86,9 +131,9 @@ function FlagSettingsPage() {
 	} = useForm<FlagSettingsForm>({
 		resolver: zodResolver(flagSettingsSchema),
 		defaultValues: {
-			name: "",
-			description: "",
-			type: "BOOLEAN",
+			name: flag.name,
+			description: flag.description ?? "",
+			type: flag.type,
 		},
 	});
 
@@ -97,80 +142,10 @@ function FlagSettingsPage() {
 	const descId = useId();
 	const typeId = useId();
 
-	useEffect(() => {
-		if (!flagKey) {
-			setError("Неверный путь");
-			setLoading(false);
-			return;
-		}
-
-		let cancelled = false;
-		setLoading(true);
-		setError(null);
-		void fetchFlag(flagKey)
-			.then((data) => {
-				if (cancelled) return;
-				setFlag(data);
-				const builtState = buildEnvState(data);
-				setEnvState(builtState);
-				setActiveEnvironment(
-					(prev) => prev ?? builtState[0]?.environment ?? environmentsOrder[0],
-				);
-				setAvailableSegments((prev) =>
-					mergeSegments(prev, collectSegmentsFromState(builtState)),
-				);
-				reset({
-					name: data.name,
-					description: data.description ?? "",
-					type: data.type,
-				});
-			})
-			.catch((err) => {
-				if (cancelled) return;
-				setError(
-					err instanceof Error ? err.message : "Не удалось загрузить флаг",
-				);
-			})
-			.finally(() => {
-				if (cancelled) return;
-				setLoading(false);
-			});
-
-		return () => {
-			cancelled = true;
-		};
-	}, [flagKey, reset]);
-
-	useEffect(() => {
-		let cancelled = false;
-		setSegmentsLoading(true);
-		setSegmentsError(null);
-		void fetchSegments()
-			.then((segments) => {
-				if (cancelled) return;
-				setAvailableSegments((prev) => mergeSegments(prev, segments));
-			})
-			.catch((err) => {
-				if (cancelled) return;
-				setSegmentsError(
-					err instanceof Error ? err.message : "Не удалось загрузить сегменты",
-				);
-			})
-			.finally(() => {
-				if (cancelled) return;
-				setSegmentsLoading(false);
-			});
-
-		return () => {
-			cancelled = true;
-		};
-	}, []);
-
-	useEffect(() => {
-		setAvailableSegments((prev) =>
-			mergeSegments(prev, collectSegmentsFromState(envState)),
-		);
-	}, [envState]);
+	const availableSegments = useMemo(
+		() => mergeSegments(segments, collectSegmentsFromState(envState)),
+		[envState, segments],
+	);
 
 	const handleEnvChange = useCallback(
 		(environment: EnvState["environment"], changes: Partial<EnvState>) => {
@@ -187,7 +162,7 @@ function FlagSettingsPage() {
 		try {
 			const created = await createSegment(name);
 			setSegmentsError(null);
-			setAvailableSegments((prev) => mergeSegments(prev, [created]));
+			setSegments((prev) => mergeSegments(prev, [created]));
 			return created;
 		} catch (err) {
 			const message =
@@ -199,7 +174,6 @@ function FlagSettingsPage() {
 
 	const onSave = useCallback(
 		async (values: FlagSettingsForm) => {
-			if (!flag) return;
 			setSaving(true);
 			setError(null);
 
@@ -219,13 +193,12 @@ function FlagSettingsPage() {
 
 			try {
 				const updated = await updateFlag(flag.key, payload);
-				setFlag(updated);
 				const builtState = buildEnvState(updated);
 				setEnvState(builtState);
-				setAvailableSegments((prev) =>
+				setSegments((prev) =>
 					mergeSegments(prev, collectSegmentsFromState(builtState)),
 				);
-				toast.success("Изменения сохранены", {
+				toast.success("Настройки флага сохранены", {
 					description: `Флаг "${updated.name}" успешно обновлён`,
 				});
 				reset({
@@ -235,7 +208,9 @@ function FlagSettingsPage() {
 				});
 			} catch (err) {
 				const message =
-					err instanceof Error ? err.message : "Не удалось сохранить изменения";
+					err instanceof Error
+						? err.message
+						: "Не удалось сохранить настройки флага";
 				toast.error("Ошибка сохранения", {
 					description: message,
 				});
@@ -244,10 +219,10 @@ function FlagSettingsPage() {
 				setSaving(false);
 			}
 		},
-		[envState, flag, reset],
+		[envState, flag.key, reset],
 	);
 
-	const canEdit = Boolean(flag && !loading);
+	const canEdit = Boolean(flag);
 
 	const currentEnv = useMemo(
 		() =>
@@ -261,14 +236,12 @@ function FlagSettingsPage() {
 			<div className="mx-auto max-w-6xl space-y-6 px-6 pb-12 pt-8">
 				<div className="space-y-2">
 					<p className="text-sm uppercase tracking-wide text-muted-foreground">
-						Настройки флага
+						Управление флагом
 					</p>
-					<h1 className="text-3xl font-semibold">
-						{flag?.key ?? flagKey ?? "---"}
-					</h1>
+					<h1 className="text-3xl font-semibold">{flag.key}</h1>
 					<p className="text-sm text-muted-foreground">
-						Здесь можно обновить описание и состояние окружений для выбранного
-						флага.
+						Редактируйте основные настройки флага и управляйте конфигурацией
+						окружений. Загрузите сегменты и условия, чтобы настроить таргетинг.
 					</p>
 				</div>
 
@@ -280,7 +253,7 @@ function FlagSettingsPage() {
 						</Link>
 					</Button>
 					<Button variant="ghost" size="sm" disabled>
-						ID {flag?.id ?? "-"}
+						ID {flag.id ?? "-"}
 					</Button>
 				</div>
 
@@ -290,145 +263,126 @@ function FlagSettingsPage() {
 					</div>
 				) : null}
 
-				{loading ? (
-					<div className="flex items-center justify-center gap-2 rounded-lg border bg-muted/30 px-6 py-8 text-muted-foreground">
-						<Loader2 className="h-5 w-5 animate-spin" />
-						Загрузка флага...
-					</div>
-				) : !flag ? (
-					<div className="rounded-lg border border-dashed border-border bg-muted/30 px-6 py-8 text-center text-muted-foreground">
-						Флаг не найден.
-					</div>
-				) : (
-					<form
-						className="space-y-6 rounded-2xl border bg-card p-6 shadow-sm"
-						onSubmit={handleSubmit(onSave)}
-					>
-						<div className="grid gap-6 md:grid-cols-2">
-							<div className="space-y-2">
-								<Label htmlFor={nameId}>Название</Label>
-								<Input
-									id={nameId}
-									{...register("name")}
-									aria-invalid={errors.name ? "true" : "false"}
-									disabled={!canEdit}
-								/>
-								{errors.name ? (
-									<p className="text-xs text-destructive">
-										{errors.name.message}
-									</p>
-								) : null}
-							</div>
-							<div className="space-y-2">
-								<Label htmlFor={typeId}>Тип</Label>
-								<Controller
-									name="type"
-									control={control}
-									render={({ field }) => (
-										<Select
-											value={field.value}
-											onValueChange={field.onChange}
-											disabled={!canEdit}
-										>
-											<SelectTrigger id={typeId} className="w-full">
-												<SelectValue placeholder="Выберите тип" />
-											</SelectTrigger>
-											<SelectContent>
-												<SelectItem value="BOOLEAN">Boolean</SelectItem>
-												<SelectItem value="MULTIVARIANT">A/B/N</SelectItem>
-											</SelectContent>
-										</Select>
-									)}
-								/>
-							</div>
-						</div>
-
+				<form
+					className="space-y-6 rounded-2xl border bg-card p-6 shadow-sm"
+					onSubmit={handleSubmit(onSave)}
+				>
+					<div className="grid gap-6 md:grid-cols-2">
 						<div className="space-y-2">
-							<Label htmlFor={descId}>Описание</Label>
-							<Textarea
-								id={descId}
-								{...register("description")}
+							<Label htmlFor={nameId}>Название</Label>
+							<Input
+								id={nameId}
+								{...register("name")}
+								aria-invalid={errors.name ? "true" : "false"}
 								disabled={!canEdit}
 							/>
-						</div>
-
-						<div className="space-y-3">
-							<div className="flex flex-wrap items-center justify-between gap-3">
-								<div>
-									<h2 className="text-lg font-semibold">Окружения</h2>
-									<p className="text-xs text-muted-foreground">
-										Настраивайте одно окружение за раз через селект.
-									</p>
-								</div>
-								<div className="flex items-center gap-2">
-									<Label
-										htmlFor={envSelectId}
-										className="text-xs text-muted-foreground"
-									>
-										Окружение
-									</Label>
-									<Select
-										value={currentEnv?.environment ?? ""}
-										onValueChange={(value) =>
-											setActiveEnvironment(value as EnvState["environment"])
-										}
-									>
-										<SelectTrigger
-											id={envSelectId}
-											className="min-w-[140px]"
-											disabled={!canEdit}
-										>
-											<SelectValue placeholder="Выберите среду" />
-										</SelectTrigger>
-										<SelectContent>
-											{environmentsOrder.map((env) => (
-												<SelectItem key={env} value={env}>
-													{env}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-								</div>
-							</div>
-							{segmentsLoading ? (
-								<p className="text-xs text-muted-foreground">
-									Загружаем доступные сегменты...
+							{errors.name ? (
+								<p className="text-xs text-destructive">
+									{errors.name.message}
 								</p>
 							) : null}
-							{segmentsError ? (
-								<p className="text-xs text-destructive">{segmentsError}</p>
-							) : null}
-							{currentEnv ? (
-								<EnvironmentCard
-									env={currentEnv}
-									availableSegments={availableSegments}
-									onChange={(changes) =>
-										handleEnvChange(currentEnv.environment, changes)
-									}
-									onCreateSegment={handleCreateSegment}
-								/>
-							) : (
-								<div className="rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
-									Окружение не выбрано.
-								</div>
-							)}
 						</div>
-
-						<div className="flex flex-wrap items-center gap-3">
-							<Button type="submit" disabled={!canEdit || saving}>
-								{saving ? (
-									<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-								) : (
-									<Settings2 className="mr-2 h-4 w-4" />
+						<div className="space-y-2">
+							<Label htmlFor={typeId}>Тип</Label>
+							<Controller
+								name="type"
+								control={control}
+								render={({ field }) => (
+									<Select
+										value={field.value}
+										onValueChange={field.onChange}
+										disabled={!canEdit}
+									>
+										<SelectTrigger id={typeId} className="w-full">
+											<SelectValue placeholder="Выберите тип" />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="BOOLEAN">Boolean</SelectItem>
+											<SelectItem value="MULTIVARIANT">A/B/N</SelectItem>
+										</SelectContent>
+									</Select>
 								)}
-								Сохранить изменения
-							</Button>
-							<Button variant="outline" size="sm" asChild>
-								<Link to="/">Отмена</Link>
-							</Button>
+							/>
 						</div>
-					</form>
-				)}
+					</div>
+
+					<div className="space-y-2">
+						<Label htmlFor={descId}>Описание</Label>
+						<Textarea
+							id={descId}
+							{...register("description")}
+							disabled={!canEdit}
+						/>
+					</div>
+
+					<div className="space-y-3">
+						<div className="flex flex-wrap items-center justify-between gap-3">
+							<div>
+								<h2 className="text-lg font-semibold">Окружения</h2>
+								<p className="text-xs text-muted-foreground">
+									Переключайте окружения и настраивайте правила таргетинга
+									для каждого из них.
+								</p>
+							</div>
+							<div className="flex items-center gap-2">
+								<Label
+									htmlFor={envSelectId}
+									className="text-xs text-muted-foreground"
+								>
+									Окружение
+								</Label>
+								<Select
+									value={currentEnv?.environment ?? ""}
+									onValueChange={(value) =>
+										setActiveEnvironment(value as EnvState["environment"])
+									}
+								>
+									<SelectTrigger id={envSelectId} className="min-w-[140px]">
+										<SelectValue placeholder="Выберите окружение" />
+									</SelectTrigger>
+									<SelectContent>
+										{environmentsOrder.map((env) => (
+											<SelectItem key={env} value={env}>
+												{env}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</div>
+						</div>
+						{segmentsError ? (
+							<p className="text-xs text-destructive">{segmentsError}</p>
+						) : null}
+						{currentEnv ? (
+							<EnvironmentCard
+								env={currentEnv}
+								availableSegments={availableSegments}
+								onChange={(changes) =>
+									handleEnvChange(currentEnv.environment, changes)
+								}
+								onCreateSegment={handleCreateSegment}
+							/>
+						) : (
+							<div className="rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
+								Окружения не найдены.
+							</div>
+						)}
+					</div>
+
+					<div className="flex flex-wrap items-center gap-3">
+						<Button type="submit" disabled={!canEdit || saving}>
+							{saving ? (
+								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+							) : (
+								<Settings2 className="mr-2 h-4 w-4" />
+							)}
+							Сохранить настройки
+						</Button>
+						<Button variant="outline" size="sm" asChild>
+							<Link to="/">Назад</Link>
+						</Button>
+					</div>
+				</form>
 			</div>
 		</div>
 	);
