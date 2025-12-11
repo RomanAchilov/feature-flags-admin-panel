@@ -1,12 +1,13 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import {
-	AlertTriangle,
-	Loader2,
-	RefreshCw,
-	Settings2,
-	Trash2,
+        AlertTriangle,
+        Loader2,
+        RefreshCw,
+        Settings2,
+        Trash2,
 } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo } from "react";
+import { z } from "zod";
 import { toast } from "sonner";
 import {
 	AlertDialog,
@@ -27,19 +28,23 @@ import {
 	type FeatureFlag,
 	type FeatureFlagEnvironment,
 	fetchFlags,
-	toggleFlagEnvironment,
+        toggleFlagEnvironment,
 } from "@/lib/api";
 import { environmentsOrder } from "@/lib/flag-utils";
 import { cn } from "@/lib/utils";
+import { useDashboardActionsStore } from "@/stores/dashboard-actions";
 
 type DashboardLoader = {
-	flags: FeatureFlag[];
-	loaderError: string | null;
+        flags: FeatureFlag[];
+        loaderError: string | null;
 };
 
+const dashboardSearchSchema = z.object({ query: z.string().optional() }).catch({ query: "" });
+
 export const Route = createFileRoute("/")({
-	loader: async (): Promise<DashboardLoader> => {
-		try {
+        validateSearch: (search) => dashboardSearchSchema.parse(search),
+        loader: async (): Promise<DashboardLoader> => {
+                try {
 			const flags = await fetchFlags();
 			return { flags, loaderError: null };
 		} catch (err) {
@@ -56,55 +61,58 @@ export const Route = createFileRoute("/")({
 });
 
 export function FeatureFlagsDashboard() {
-	const { flags, loaderError } = Route.useLoaderData();
-	const router = useRouter();
-	const [actionError, setActionError] = useState<string | null>(loaderError);
-	const [search, setSearch] = useState("");
-	const [togglingKey, setTogglingKey] = useState<string | null>(null);
-	const [deletingKey, setDeletingKey] = useState<string | null>(null);
-	const [confirmationAction, setConfirmationAction] = useState<
-		| {
-				type: "toggle";
-				flagKey: string;
-				environment: FeatureEnvironment;
-				enabled: boolean;
-		  }
-		| { type: "delete"; flagKey: string }
-		| null
-	>(null);
-	const [confirmationInput, setConfirmationInput] = useState("");
-	const [refreshing, setRefreshing] = useState(false);
+        const { flags, loaderError } = Route.useLoaderData();
+        const { query = "" } = Route.useSearch();
+        const router = useRouter();
+        const {
+                actionError,
+                setActionError,
+                togglingKey,
+                setTogglingKey,
+                deletingKey,
+                setDeletingKey,
+                confirmationAction,
+                setConfirmationAction,
+                confirmationInput,
+                setConfirmationInput,
+                refreshing,
+                setRefreshing,
+                resetAll,
+                resetConfirmation,
+        } = useDashboardActionsStore();
 
-	const refreshFlags = useCallback(async () => {
-		setRefreshing(true);
-		setActionError(null);
-		try {
-			await router.invalidate();
-		} finally {
-			setRefreshing(false);
-		}
-	}, [router]);
+        useEffect(() => {
+                setActionError(loaderError);
+                return () => {
+                        resetAll();
+                };
+        }, [loaderError, resetAll, setActionError]);
 
-	const filteredFlags = useMemo(() => {
-		const term = search.trim().toLowerCase();
-		if (!term) return flags;
-		return flags.filter(
-			(flag) =>
-				flag.key.toLowerCase().includes(term) ||
-				flag.name.toLowerCase().includes(term),
-		);
-	}, [flags, search]);
+        const refreshFlags = useCallback(async () => {
+                setRefreshing(true);
+                setActionError(null);
+                try {
+                        await router.invalidate();
+                } finally {
+                        setRefreshing(false);
+                }
+        }, [router, setActionError, setRefreshing]);
 
-	const resetConfirmation = useCallback(() => {
-		setConfirmationAction(null);
-		setConfirmationInput("");
-	}, []);
+        const filteredFlags = useMemo(() => {
+                const term = query.trim().toLowerCase();
+                if (!term) return flags;
+                return flags.filter(
+                        (flag) =>
+                                flag.key.toLowerCase().includes(term) ||
+                                flag.name.toLowerCase().includes(term),
+                );
+        }, [flags, query]);
 
-	const toggleEnvironment = useCallback(
-		async (flagKey: string, env: FeatureEnvironment, enabled: boolean) => {
-			setTogglingKey(`${flagKey}-${env}`);
-			setActionError(null);
-			try {
+        const toggleEnvironment = useCallback(
+                async (flagKey: string, env: FeatureEnvironment, enabled: boolean) => {
+                        setTogglingKey(`${flagKey}-${env}`);
+                        setActionError(null);
+                        try {
 				await toggleFlagEnvironment(flagKey, env, enabled);
 				toast.success("Состояние обновлено", {
 					description: `${env}: ${enabled ? "включено" : "выключено"}`,
@@ -115,33 +123,33 @@ export function FeatureFlagsDashboard() {
 					err instanceof Error ? err.message : "Не удалось обновить окружение";
 				toast.error("Ошибка", { description: message });
 				setActionError(message);
-			} finally {
-				setTogglingKey(null);
-			}
-		},
-		[refreshFlags],
-	);
+                        } finally {
+                                setTogglingKey(null);
+                        }
+                },
+                [refreshFlags, setActionError, setTogglingKey],
+        );
 
-	const requestToggle = useCallback(
-		(flagKey: string, env: FeatureEnvironment, enabled: boolean) => {
-			if (env === "production") {
-				setConfirmationInput("");
-				setConfirmationAction({
-					type: "toggle",
-					flagKey,
-					environment: env,
-					enabled,
-				});
-				return;
-			}
-			void toggleEnvironment(flagKey, env, enabled);
-		},
-		[toggleEnvironment],
-	);
+        const requestToggle = useCallback(
+                (flagKey: string, env: FeatureEnvironment, enabled: boolean) => {
+                        if (env === "production") {
+                                setConfirmationInput("");
+                                setConfirmationAction({
+                                        type: "toggle",
+                                        flagKey,
+                                        environment: env,
+                                        enabled,
+                                });
+                                return;
+                        }
+                        void toggleEnvironment(flagKey, env, enabled);
+                },
+                [setConfirmationAction, setConfirmationInput, toggleEnvironment],
+        );
 
-	const performDelete = useCallback(
-		async (key: string) => {
-			setDeletingKey(key);
+        const performDelete = useCallback(
+                async (key: string) => {
+                        setDeletingKey(key);
 			setActionError(null);
 			try {
 				await deleteFlag(key);
@@ -154,17 +162,17 @@ export function FeatureFlagsDashboard() {
 					err instanceof Error ? err.message : "Не удалось удалить флаг";
 				toast.error("Ошибка удаления", { description: message });
 				setActionError(message);
-			} finally {
-				setDeletingKey(null);
-			}
-		},
-		[refreshFlags],
-	);
+                        } finally {
+                                setDeletingKey(null);
+                        }
+                },
+                [refreshFlags, setActionError, setDeletingKey],
+        );
 
-	const requestDelete = useCallback((key: string) => {
-		setConfirmationInput("");
-		setConfirmationAction({ type: "delete", flagKey: key });
-	}, []);
+        const requestDelete = useCallback((key: string) => {
+                setConfirmationInput("");
+                setConfirmationAction({ type: "delete", flagKey: key });
+        }, [setConfirmationAction, setConfirmationInput]);
 
 	const confirmAction = useCallback(async () => {
 		if (!confirmationAction) return;
@@ -251,11 +259,17 @@ export function FeatureFlagsDashboard() {
 							</p>
 						</div>
 
-						<Input
-							placeholder="Поиск по ключу или имени"
-							value={search}
-							onChange={(event) => setSearch(event.target.value)}
-						/>
+                                                <Input
+                                                        placeholder="Поиск по ключу или имени"
+                                                        value={query}
+                                                                onChange={(event) =>
+                                                                                void router.navigate({
+                                                                                        to: Route.to,
+                                                                                        search: { query: event.target.value },
+                                                                                        replace: true,
+                                                                                })
+                                                                }
+                                                />
 
 						<div className="space-y-4">
 							{filteredFlags.length === 0 ? (

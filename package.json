@@ -43,7 +43,8 @@
     "tailwindcss": "^4.0.6",
     "tw-animate-css": "^1.3.6",
     "use-mask-input": "^3.5.2",
-    "zod": "^4.1.11"
+    "zod": "^4.1.11",
+    "zustand": "file:vendor/zustand"
   },
   "devDependencies": {
     "@biomejs/biome": "2.2.4",

@@ -1,0 +1,6 @@
+{
+  "name": "zustand",
+  "version": "5.0.1",
+  "main": "index.js",
+  "types": "index.d.ts"
+}
