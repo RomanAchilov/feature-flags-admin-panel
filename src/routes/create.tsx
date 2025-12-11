@@ -1,7 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Loader2, Plus } from "lucide-react";
-import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -39,18 +38,17 @@ export const Route = createFileRoute("/create")({
 });
 
 function CreateFlagPage() {
-	const navigate = useNavigate();
-	const [error, setError] = useState<string | null>(null);
-	const [creating, setCreating] = useState(false);
-
-	const {
-		register,
-		handleSubmit,
-		control,
-		formState: { errors },
-	} = useForm<CreateFlagForm>({
-		resolver: zodResolver(createFlagFormSchema),
-		defaultValues: {
+        const navigate = useNavigate();
+        const {
+                register,
+                handleSubmit,
+                control,
+                setError,
+                clearErrors,
+                formState: { errors, isSubmitting },
+        } = useForm<CreateFlagForm>({
+                resolver: zodResolver(createFlagFormSchema),
+                defaultValues: {
 			key: "",
 			name: "",
 			description: "",
@@ -59,31 +57,28 @@ function CreateFlagPage() {
 		mode: "onChange",
 	});
 
-	const onSubmit = handleSubmit(async (value) => {
-		setCreating(true);
-		setError(null);
-		try {
-			const payload: CreateFlagPayload = {
-				key: value.key.trim(),
+        const onSubmit = handleSubmit(async (value) => {
+                clearErrors("root");
+                try {
+                        const payload: CreateFlagPayload = {
+                                key: value.key.trim(),
 				name: value.name.trim(),
 				description: value.description?.trim() || undefined,
 				type: value.type,
 				environments: defaultEnvironments,
 			};
 			await createFlag(payload);
-			toast.success("Флаг создан", {
-				description: `Флаг "${value.name}" успешно создан`,
-			});
-			navigate({ to: "/" });
-		} catch (err) {
-			const message =
-				err instanceof Error ? err.message : "Не удалось создать флаг";
-			toast.error("Ошибка создания", { description: message });
-			setError(message);
-		} finally {
-			setCreating(false);
-		}
-	});
+                        toast.success("Флаг создан", {
+                                description: `Флаг "${value.name}" успешно создан`,
+                        });
+                        navigate({ to: "/" });
+                } catch (err) {
+                        const message =
+                                err instanceof Error ? err.message : "Не удалось создать флаг";
+                        toast.error("Ошибка создания", { description: message });
+                        setError("root", { type: "server", message });
+                }
+        });
 
 	return (
 		<div className="mx-auto max-w-3xl space-y-6 px-6 py-10">
@@ -98,11 +93,11 @@ function CreateFlagPage() {
 				</p>
 			</div>
 
-			{error ? (
-				<div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-destructive">
-					{error}
-				</div>
-			) : null}
+                        {errors.root?.message ? (
+                                <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-destructive">
+                                        {errors.root.message}
+                                </div>
+                        ) : null}
 
 			<form
 				className="space-y-5 rounded-2xl border bg-card p-6 shadow-sm"
@@ -148,14 +143,14 @@ function CreateFlagPage() {
 					/>
 				</div>
 				<div className="flex justify-between gap-3 pt-4">
-					<Button variant="ghost" onClick={() => navigate({ to: "/" })}>
-						Отменить
-					</Button>
-					<Button type="submit" disabled={creating}>
-						{creating ? (
-							<Loader2 className="h-4 w-4 animate-spin" />
-						) : (
-							<Plus className="h-4 w-4" />
+                                        <Button variant="ghost" onClick={() => navigate({ to: "/" })}>
+                                                Отменить
+                                        </Button>
+                                        <Button type="submit" disabled={isSubmitting}>
+                                                {isSubmitting ? (
+                                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                                ) : (
+                                                        <Plus className="h-4 w-4" />
 						)}
 						Создать
 					</Button>

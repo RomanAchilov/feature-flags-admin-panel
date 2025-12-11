@@ -114,26 +114,25 @@ function FlagSettingsContent({
 	flag,
 	initialSegments,
 }: FlagSettingsContentProps) {
-	const [envState, setEnvState] = useState<EnvState[]>(() =>
-		buildEnvState(flag),
-	);
-	const [activeEnvironment, setActiveEnvironment] = useState<
-		EnvState["environment"] | null
-	>(() => buildEnvState(flag)[0]?.environment ?? environmentsOrder[0]);
-	const [segments, setSegments] = useState<string[]>(() => initialSegments);
-	const [saving, setSaving] = useState(false);
-	const [error, setError] = useState<string | null>(null);
-	const [segmentsError, setSegmentsError] = useState<string | null>(null);
+        const [envState, setEnvState] = useState<EnvState[]>(() =>
+                buildEnvState(flag),
+        );
+        const [activeEnvironment, setActiveEnvironment] = useState<
+                EnvState["environment"] | null
+        >(() => buildEnvState(flag)[0]?.environment ?? environmentsOrder[0]);
+        const [segments, setSegments] = useState<string[]>(() => initialSegments);
 
-	const {
-		register,
-		handleSubmit,
-		reset,
-		control,
-		formState: { errors },
-	} = useForm<FlagSettingsForm>({
-		resolver: zodResolver(flagSettingsSchema),
-		defaultValues: {
+        const {
+                register,
+                handleSubmit,
+                reset,
+                control,
+                setError,
+                clearErrors,
+                formState: { errors, isSubmitting },
+        } = useForm<FlagSettingsForm>({
+                resolver: zodResolver(flagSettingsSchema),
+                defaultValues: {
 			name: flag.name,
 			description: flag.description ?? "",
 			type: flag.type,
@@ -161,24 +160,23 @@ function FlagSettingsContent({
 		[],
 	);
 
-	const handleCreateSegment = useCallback(async (name: string) => {
-		try {
-			const created = await createSegment(name);
-			setSegmentsError(null);
-			setSegments((prev) => mergeSegments(prev, [created]));
-			return created;
-		} catch (err) {
-			const message =
-				err instanceof Error ? err.message : "Не удалось создать сегмент";
-			setSegmentsError(message);
-			throw new Error(message);
-		}
-	}, []);
+        const handleCreateSegment = useCallback(async (name: string) => {
+                try {
+                        const created = await createSegment(name);
+                        clearErrors("root");
+                        setSegments((prev) => mergeSegments(prev, [created]));
+                        return created;
+                } catch (err) {
+                        const message =
+                                err instanceof Error ? err.message : "Не удалось создать сегмент";
+                        setError("root", { type: "segments", message, types: { segments: message } });
+                        throw new Error(message);
+                }
+        }, [clearErrors, setError]);
 
-	const onSave = useCallback(
-		async (values: FlagSettingsForm) => {
-			setSaving(true);
-			setError(null);
+        const onSave = useCallback(
+                async (values: FlagSettingsForm) => {
+                        clearErrors("root");
 
 			const payload: UpdateFlagPayload = {
 				name: values.name.trim(),
@@ -201,41 +199,43 @@ function FlagSettingsContent({
 				setSegments((prev) =>
 					mergeSegments(prev, collectSegmentsFromState(builtState)),
 				);
-				toast.success("Настройки флага сохранены", {
-					description: `Флаг "${updated.name}" успешно обновлён`,
-				});
-				reset({
-					name: updated.name,
-					description: updated.description ?? "",
-					type: updated.type,
-				});
-			} catch (err) {
-				const message =
-					err instanceof Error
-						? err.message
-						: "Не удалось сохранить настройки флага";
-				toast.error("Ошибка сохранения", {
-					description: message,
-				});
-				setError(message);
-			} finally {
-				setSaving(false);
-			}
-		},
-		[envState, flag.key, reset],
-	);
+                        toast.success("Настройки флага сохранены", {
+                                description: `Флаг "${updated.name}" успешно обновлён`,
+                        });
+                        reset({
+                                name: updated.name,
+                                description: updated.description ?? "",
+                                type: updated.type,
+                        });
+                } catch (err) {
+                        const message =
+                                err instanceof Error
+                                        ? err.message
+                                        : "Не удалось сохранить настройки флага";
+                        toast.error("Ошибка сохранения", {
+                                description: message,
+                        });
+                        setError("root", { type: "save", message, types: { save: message } });
+                }
+        },
+        [clearErrors, envState, flag.key, reset, setError],
+        );
 
 	const canEdit = Boolean(flag);
 
-	const currentEnv = useMemo(
-		() =>
-			envState.find((item) => item.environment === activeEnvironment) ??
-			envState[0],
-		[activeEnvironment, envState],
-	);
+        const currentEnv = useMemo(
+                () =>
+                        envState.find((item) => item.environment === activeEnvironment) ??
+                        envState[0],
+                [activeEnvironment, envState],
+        );
 
-	return (
-		<div className="min-h-screen bg-background text-foreground">
+        const rootErrorTypes = (errors.root?.types as Record<string, string> | undefined) ?? {};
+        const rootSaveError = rootErrorTypes.save ?? errors.root?.message;
+        const rootSegmentsError = rootErrorTypes.segments;
+
+        return (
+                <div className="min-h-screen bg-background text-foreground">
 			<div className="mx-auto max-w-6xl space-y-6 px-6 pb-12 pt-8">
 				<div className="space-y-2">
 					<p className="text-sm uppercase tracking-wide text-muted-foreground">
@@ -255,16 +255,16 @@ function FlagSettingsContent({
 							Назад
 						</Link>
 					</Button>
-					<Button variant="ghost" size="sm" disabled>
-						ID {flag.id ?? "-"}
-					</Button>
-				</div>
+                                        <Button variant="ghost" size="sm" disabled>
+                                                ID {flag.id ?? "-"}
+                                        </Button>
+                                </div>
 
-				{error ? (
-					<div className="flex items-center gap-3 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-destructive">
-						<span>{error}</span>
-					</div>
-				) : null}
+                                {rootSaveError ? (
+                                        <div className="flex items-center gap-3 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-destructive">
+                                                <span>{rootSaveError}</span>
+                                        </div>
+                                ) : null}
 
 				<form
 					className="space-y-6 rounded-2xl border bg-card p-6 shadow-sm"
@@ -352,10 +352,10 @@ function FlagSettingsContent({
 									</SelectContent>
 								</Select>
 							</div>
-						</div>
-						{segmentsError ? (
-							<p className="text-xs text-destructive">{segmentsError}</p>
-						) : null}
+                                                        </div>
+                                                {rootSegmentsError ? (
+                                                        <p className="text-xs text-destructive">{rootSegmentsError}</p>
+                                                ) : null}
 						{currentEnv ? (
 							<EnvironmentCard
 								env={currentEnv}
@@ -372,15 +372,15 @@ function FlagSettingsContent({
 						)}
 					</div>
 
-					<div className="flex flex-wrap items-center gap-3">
-						<Button type="submit" disabled={!canEdit || saving}>
-							{saving ? (
-								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-							) : (
-								<Settings2 className="mr-2 h-4 w-4" />
-							)}
-							Сохранить настройки
-						</Button>
+                                        <div className="flex flex-wrap items-center gap-3">
+                                                <Button type="submit" disabled={!canEdit || isSubmitting}>
+                                                        {isSubmitting ? (
+                                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                        ) : (
+                                                                <Settings2 className="mr-2 h-4 w-4" />
+                                                        )}
+                                                        Сохранить настройки
+                                                </Button>
 						<Button variant="outline" size="sm" asChild>
 							<Link to="/">Назад</Link>
 						</Button>
